@@ -27,6 +27,11 @@ import {
   X,
   MapPin,
   Sparkles,
+  Terminal,
+  Download,
+  FileSpreadsheet,
+  Globe,
+  ExternalLink,
 } from 'lucide-react';
 import {
   fetchOverviewStats,
@@ -35,7 +40,11 @@ import {
   fetchProjects,
   fetchTasks,
   fetchLeads,
+  fetchRecentActivity,
   harvestGoogleMapsLeads,
+  exportLeadsCsvUrl,
+  exportLeadsJson,
+  triggerAutonomousSprint,
   chatWithAgent,
 } from './api';
 import type {
@@ -45,8 +54,18 @@ import type {
   Project,
   Task,
   Lead,
+  ActivityItem,
+  AutonomousSprintResult,
   AgentChatResponse,
 } from './api';
+
+const jsonParse = (str: string) => {
+  try {
+    return JSON.parse(str);
+  } catch {
+    return null;
+  }
+};
 
 export function App() {
   const [activeMenu, setActiveMenu] = useState<
@@ -59,7 +78,13 @@ export function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Executive AI Command Terminal state
+  const [sprintObjective, setSprintObjective] = useState('');
+  const [sprintRunning, setSprintRunning] = useState(false);
+  const [sprintResult, setSprintResult] = useState<AutonomousSprintResult | null>(null);
 
   // Manage Agent Live Chat Modal
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -67,22 +92,29 @@ export function App() {
   const [chatSending, setChatSending] = useState(false);
   const [chatHistory, setChatHistory] = useState<AgentChatResponse[]>([]);
 
-  // Google Maps Lead Harvester state
+  // Advanced Google Maps Lead Crawler state (Botsol standard)
+  const [crawlerMode, setCrawlerMode] = useState<'single' | 'bulk'>('single');
   const [mapsQuery, setMapsQuery] = useState('Software Companies');
   const [mapsLocation, setMapsLocation] = useState('Chennai');
+  const [bulkQueriesText, setBulkQueriesText] = useState(
+    'HVAC contractors in Dallas, TX\nDental clinics in Lahore\nPlumber in Chicago, IL\nSoftware companies in Chennai'
+  );
+  const [minRatingFilter, setMinRatingFilter] = useState<number>(0.0);
+  const [onlyMissingWebsite, setOnlyMissingWebsite] = useState<boolean>(false);
   const [mapsHarvesting, setMapsHarvesting] = useState(false);
   const [mapsBanner, setMapsBanner] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [sData, dData, aData, pData, tData, lData] = await Promise.all([
+      const [sData, dData, aData, pData, tData, lData, actData] = await Promise.all([
         fetchOverviewStats(),
         fetchDepartments(),
         fetchAgents(),
         fetchProjects(),
         fetchTasks(),
         fetchLeads(),
+        fetchRecentActivity(),
       ]);
       setStats(sData);
       setDepartments(dData);
@@ -90,6 +122,7 @@ export function App() {
       setProjects(pData);
       setTasks(tData);
       setLeads(lData);
+      setActivities(actData);
     } catch (err) {
       console.error('Failed to load company data:', err);
     } finally {
@@ -99,9 +132,26 @@ export function App() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 20000);
+    const interval = setInterval(loadData, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleExecuteSprint = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sprintObjective.trim() || sprintRunning) return;
+
+    try {
+      setSprintRunning(true);
+      setSprintResult(null);
+      const result = await triggerAutonomousSprint(sprintObjective);
+      setSprintResult(result);
+      loadData();
+    } catch {
+      alert('Failed to execute AI company sprint. Check local Ollama status.');
+    } finally {
+      setSprintRunning(false);
+    }
+  };
 
   const handleOpenManageModal = (agent: Agent) => {
     setSelectedAgent(agent);
@@ -118,6 +168,7 @@ export function App() {
       const res = await chatWithAgent(selectedAgent.id, chatMessage);
       setChatHistory((prev) => [...prev, res]);
       setChatMessage('');
+      loadData();
     } catch {
       alert('Failed to get response from local agent.');
     } finally {
@@ -127,18 +178,69 @@ export function App() {
 
   const handleHarvestGoogleMaps = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!mapsQuery.trim() || !mapsLocation.trim() || mapsHarvesting) return;
+    if (mapsHarvesting) return;
 
     try {
       setMapsHarvesting(true);
       setMapsBanner(null);
-      const res = await harvestGoogleMapsLeads(mapsQuery, mapsLocation, 5);
+
+      let res;
+      if (crawlerMode === 'bulk') {
+        const queryList = bulkQueriesText
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0);
+
+        if (queryList.length === 0) {
+          alert('Please enter at least one search query.');
+          setMapsHarvesting(false);
+          return;
+        }
+
+        res = await harvestGoogleMapsLeads(
+          'Bulk Search',
+          'Multiple',
+          3,
+          minRatingFilter,
+          onlyMissingWebsite,
+          queryList
+        );
+      } else {
+        if (!mapsQuery.trim() || !mapsLocation.trim()) {
+          alert('Please enter both Category and Location.');
+          setMapsHarvesting(false);
+          return;
+        }
+        res = await harvestGoogleMapsLeads(
+          mapsQuery,
+          mapsLocation,
+          5,
+          minRatingFilter,
+          onlyMissingWebsite
+        );
+      }
+
       setMapsBanner(res.message);
       loadData();
     } catch {
-      alert('Failed to harvest leads from Google Maps.');
+      alert('Failed to harvest leads from Google Maps. Check backend connection.');
     } finally {
       setMapsHarvesting(false);
+    }
+  };
+
+  const handleExportJson = async () => {
+    try {
+      const data = await exportLeadsJson();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'code_wibes_google_maps_leads.json';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Failed to export JSON.');
     }
   };
 
@@ -330,6 +432,103 @@ export function App() {
                 </div>
               </div>
 
+              {/* Owner AI Executive Command Terminal */}
+              <div className="owner-terminal-card">
+                <div className="terminal-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Terminal size={18} color="#00f0ff" />
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff', letterSpacing: '0.05em' }}>
+                      FOUNDER & CEO EXECUTIVE DISPATCH • LOCAL GPU INFERENCE
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '11px', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '3px 10px', borderRadius: '12px' }}>
+                    ● Real Ollama Runtime (RTX 4050 6GB)
+                  </span>
+                </div>
+
+                <form onSubmit={handleExecuteSprint} style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                  <input
+                    type="text"
+                    value={sprintObjective}
+                    onChange={(e) => setSprintObjective(e.target.value)}
+                    placeholder="Give an order to your AI company (e.g. 'Build an e-commerce platform', 'Scrape 20 software firms in Bangalore', 'Run security audit')..."
+                    style={{
+                      flex: 1,
+                      background: '#070913',
+                      border: '1px solid rgba(0,240,255,0.3)',
+                      borderRadius: '10px',
+                      padding: '12px 18px',
+                      color: '#ffffff',
+                      fontSize: '13.5px',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={sprintRunning}
+                    className="btn-hq"
+                    style={{ padding: '0 24px', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}
+                  >
+                    <Sparkles size={16} />
+                    {sprintRunning ? 'AI Agents Executing...' : 'Execute AI Sprint'}
+                  </button>
+                </form>
+
+                {/* Quick Action Chips */}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSprintObjective('Build a modern React + FastAPI customer portal with authentication')}
+                    className="quick-chip"
+                  >
+                    💻 Build Web App
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSprintObjective('Harvest 15 digital marketing agencies in Chennai from Google Maps')}
+                    className="quick-chip"
+                  >
+                    🗺️ Harvest Google Maps Leads
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSprintObjective('Audit API security and generate automated test suite')}
+                    className="quick-chip"
+                  >
+                    🛡️ Security & QA Audit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSprintObjective('Formulate Q1 client acquisition strategy and cold pitch templates')}
+                    className="quick-chip"
+                  >
+                    📢 Marketing & Sales Campaign
+                  </button>
+                </div>
+
+                {/* Live Execution Output Window */}
+                {sprintResult && (
+                  <div className="sprint-output-box">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ color: '#34d399', fontWeight: 800 }}>✓ Sprint Completed by Autonomous Agents</span>
+                      <span style={{ color: '#64748b', cursor: 'pointer' }} onClick={() => setSprintResult(null)}>✕ Close</span>
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#e2e8f0', whiteSpace: 'pre-wrap', maxHeight: '200px', overflowY: 'auto' }}>
+                      <p style={{ color: '#38bdf8', fontWeight: 700, marginBottom: '4px' }}>[CEO Nexus Plan]:</p>
+                      <p style={{ marginBottom: '10px' }}>{sprintResult.ceo_plan}</p>
+                      {sprintResult.code_generated && (
+                        <>
+                          <p style={{ color: '#c084fc', fontWeight: 700, marginBottom: '4px' }}>[Engineer Forge Code Generated]:</p>
+                          <pre style={{ background: '#050711', padding: '10px', borderRadius: '8px', fontSize: '12px' }}>
+                            {sprintResult.code_generated.slice(0, 1000)}...
+                          </pre>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* 4 Metric Cards */}
               <div className="metric-stats-row">
                 {/* 1. Departments */}
@@ -477,98 +676,102 @@ export function App() {
                   </div>
 
                   <div className="employees-list">
-                    {agents.slice(0, 5).map((agent, i) => (
-                      <div key={agent.id} className="employee-row-item">
-                        <div className="emp-avatar-wrap">
-                          <div
-                            className="emp-avatar"
-                            style={{
-                              background:
-                                i === 0
-                                  ? 'linear-gradient(135deg, #8b5cf6, #ec4899)'
-                                  : i === 1
-                                  ? 'linear-gradient(135deg, #0284c7, #3b82f6)'
-                                  : i === 2
-                                  ? 'linear-gradient(135deg, #10b981, #06b6d4)'
-                                  : 'linear-gradient(135deg, #f59e0b, #ef4444)',
-                            }}
-                          >
-                            {agent.name.charAt(0)}
+                    {[...agents]
+                      .sort((a, b) => {
+                        const order = ['Nexus', 'Forge', 'Echo', 'Ledger', 'Atlas'];
+                        const ia = order.indexOf(a.name);
+                        const ib = order.indexOf(b.name);
+                        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+                      })
+                      .slice(0, 5)
+                      .map((agent, i) => (
+                        <div key={agent.id} className="employee-row-item">
+                          <div className="emp-avatar-wrap">
+                            <div
+                              className="emp-avatar"
+                              style={{
+                                background:
+                                  i === 0
+                                    ? 'linear-gradient(135deg, #8b5cf6, #ec4899)'
+                                    : i === 1
+                                    ? 'linear-gradient(135deg, #0284c7, #3b82f6)'
+                                    : i === 2
+                                    ? 'linear-gradient(135deg, #10b981, #06b6d4)'
+                                    : 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                              }}
+                            >
+                              {agent.name.charAt(0)}
+                            </div>
+                            <div className="emp-details">
+                              <h4>{agent.name}</h4>
+                              <p>{agent.role}</p>
+                            </div>
                           </div>
-                          <div className="emp-details">
-                            <h4>{agent.name}</h4>
-                            <p>{agent.role}</p>
-                          </div>
-                        </div>
 
-                        <div className="emp-actions">
-                          <div className="active-dot-label">
-                            <span className="dot"></span>
-                            <span>Online</span>
+                          <div className="emp-actions">
+                            <div className="active-dot-label">
+                              <span className="dot"></span>
+                              <span>Online</span>
+                            </div>
+                            <button
+                              className="btn-manage"
+                              onClick={() => handleOpenManageModal(agent)}
+                            >
+                              Manage
+                            </button>
                           </div>
-                          <button
-                            className="btn-manage"
-                            onClick={() => handleOpenManageModal(agent)}
-                          >
-                            Manage
-                          </button>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </div>
 
-                {/* Right Column: Recent Activity */}
+                {/* Right Column: Recent Activity (Live from Database) */}
                 <div className="dash-panel">
                   <div className="panel-header">
                     <h3>Recent Activity</h3>
-                    <span className="view-all-link">View All →</span>
+                    <span className="view-all-link" onClick={() => setActiveMenu('tasks')}>
+                      View All →
+                    </span>
                   </div>
 
                   <div className="activity-feed-list">
-                    <div className="activity-feed-item">
-                      <div className="activity-icon-bubble green">
-                        <CheckCircle2 size={16} />
+                    {activities.length > 0 ? (
+                      activities.slice(0, 4).map((act, i) => (
+                        <div key={act.id || i} className="activity-feed-item">
+                          <div
+                            className={`activity-icon-bubble ${
+                              i === 0 ? 'green' : i === 1 ? 'blue' : i === 2 ? 'purple' : 'amber'
+                            }`}
+                          >
+                            {i === 0 ? (
+                              <CheckCircle2 size={16} />
+                            ) : i === 1 ? (
+                              <MessageSquare size={16} />
+                            ) : i === 2 ? (
+                              <Plus size={16} />
+                            ) : (
+                              <Upload size={16} />
+                            )}
+                          </div>
+                          <div className="activity-text-wrap">
+                            <h5>{act.title}</h5>
+                            <p>{act.subtitle}</p>
+                            <span className="time">{act.time}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="activity-feed-item">
+                        <div className="activity-icon-bubble green">
+                          <CheckCircle2 size={16} />
+                        </div>
+                        <div className="activity-text-wrap">
+                          <h5>System Initialized</h5>
+                          <p>All AI agents operational on RTX 4050 GPU</p>
+                          <span className="time">Just now</span>
+                        </div>
                       </div>
-                      <div className="activity-text-wrap">
-                        <h5>New task completed</h5>
-                        <p>Website optimization project</p>
-                        <span className="time">2 min ago</span>
-                      </div>
-                    </div>
-
-                    <div className="activity-feed-item">
-                      <div className="activity-icon-bubble blue">
-                        <MessageSquare size={16} />
-                      </div>
-                      <div className="activity-text-wrap">
-                        <h5>New message</h5>
-                        <p>From AI CTO</p>
-                        <span className="time">5 min ago</span>
-                      </div>
-                    </div>
-
-                    <div className="activity-feed-item">
-                      <div className="activity-icon-bubble purple">
-                        <Plus size={16} />
-                      </div>
-                      <div className="activity-text-wrap">
-                        <h5>New department created</h5>
-                        <p>AI Research & Innovation</p>
-                        <span className="time">10 min ago</span>
-                      </div>
-                    </div>
-
-                    <div className="activity-feed-item">
-                      <div className="activity-icon-bubble amber">
-                        <Upload size={16} />
-                      </div>
-                      <div className="activity-text-wrap">
-                        <h5>New file uploaded</h5>
-                        <p>Company strategy.pdf</p>
-                        <span className="time">15 min ago</span>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -845,128 +1048,318 @@ export function App() {
             </div>
           )}
 
-          {/* TAB: ANALYTICS (LEADS & GOOGLE MAPS) */}
+          {/* TAB: ANALYTICS (GOOGLE MAPS CRAWLER STUDIO - BOTSOL STANDARD) */}
           {activeMenu === 'analytics' && (
             <div>
-              <div style={{ marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '24px', fontWeight: 800 }}>Analytics & Google Maps Lead Harvester</h2>
-                <p style={{ color: '#94a3b8', fontSize: '14px' }}>
-                  Target local businesses on Google Maps and pipeline analytics.
-                </p>
-              </div>
-
-              {/* Google Maps Harvester Box */}
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, rgba(14, 25, 60, 0.8), rgba(9, 13, 33, 0.95))',
-                  border: '1px solid rgba(0, 240, 255, 0.3)',
-                  borderRadius: '18px',
-                  padding: '24px',
-                  marginBottom: '28px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                  <MapPin size={22} color="#00f0ff" />
-                  <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#ffffff' }}>
-                    Google Maps Lead Harvester (Hunter Agent)
-                  </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <h2 style={{ fontSize: '24px', fontWeight: 800 }}>Google Maps Lead Crawler & Studio</h2>
+                  <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '4px' }}>
+                    Automated B2B lead generation matching the Botsol standard. Extract verified contacts and export to Excel/CSV or JSON.
+                  </p>
                 </div>
 
-                <form onSubmit={handleHarvestGoogleMaps} style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: '220px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
-                      Category / Business
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={mapsQuery}
-                      onChange={(e) => setMapsQuery(e.target.value)}
-                      placeholder="e.g. Software Companies, Clinics"
-                      style={{
-                        width: '100%',
-                        background: '#070913',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        borderRadius: '8px',
-                        padding: '10px 14px',
-                        color: 'white',
-                      }}
-                    />
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <a href={exportLeadsCsvUrl} download="code_wibes_leads.csv" className="btn-export green">
+                    <FileSpreadsheet size={15} />
+                    Export to Excel / CSV
+                  </a>
+                  <button onClick={handleExportJson} className="btn-export">
+                    <Download size={15} />
+                    Export JSON Array
+                  </button>
+                </div>
+              </div>
+
+              {/* Crawler Configuration Card */}
+              <div className="crawler-card">
+                {/* Search Mode Toggle */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '14px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className={`mode-pill ${crawlerMode === 'single' ? 'active' : 'inactive'}`}
+                      onClick={() => setCrawlerMode('single')}
+                    >
+                      Single Search (Niche + City)
+                    </button>
+                    <button
+                      type="button"
+                      className={`mode-pill ${crawlerMode === 'bulk' ? 'active' : 'inactive'}`}
+                      onClick={() => setCrawlerMode('bulk')}
+                    >
+                      Multi-Search / Bulk List
+                    </button>
                   </div>
 
-                  <div style={{ flex: 1, minWidth: '220px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
-                      Location / City
+                  <span style={{ fontSize: '12px', color: '#00f0ff', fontWeight: 700 }}>
+                    Hunter Agent • Local RTX 4050 GPU
+                  </span>
+                </div>
+
+                <form onSubmit={handleHarvestGoogleMaps}>
+                  {crawlerMode === 'single' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '18px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
+                          Target Niche / Category
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={mapsQuery}
+                          onChange={(e) => setMapsQuery(e.target.value)}
+                          placeholder="e.g. HVAC contractors, Dental clinics, Web agencies"
+                          style={{
+                            width: '100%',
+                            background: '#070913',
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            borderRadius: '10px',
+                            padding: '11px 16px',
+                            color: 'white',
+                            fontSize: '13.5px',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
+                          Location (City, State / ZIP)
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={mapsLocation}
+                          onChange={(e) => setMapsLocation(e.target.value)}
+                          placeholder="e.g. Dallas, TX or Chennai or Chicago, IL 60611"
+                          style={{
+                            width: '100%',
+                            background: '#070913',
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            borderRadius: '10px',
+                            padding: '11px 16px',
+                            color: 'white',
+                            fontSize: '13.5px',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: '18px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
+                        Multi-Search Query List (One query per line — e.g. "plumber in Chicago, IL 60611")
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={bulkQueriesText}
+                        onChange={(e) => setBulkQueriesText(e.target.value)}
+                        style={{
+                          width: '100%',
+                          background: '#070913',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          borderRadius: '10px',
+                          padding: '12px 16px',
+                          color: 'white',
+                          fontSize: '13px',
+                          fontFamily: 'JetBrains Mono, monospace',
+                          outline: 'none',
+                          lineHeight: '1.5',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Filter Row */}
+                  <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px', background: 'rgba(255,255,255,0.02)', padding: '12px 16px', borderRadius: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <label style={{ fontSize: '12px', color: '#94a3b8' }}>Filter Rating:</label>
+                      <select
+                        value={minRatingFilter}
+                        onChange={(e) => setMinRatingFilter(parseFloat(e.target.value))}
+                        style={{
+                          background: '#0a0d1e',
+                          color: '#ffffff',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          borderRadius: '6px',
+                          padding: '6px 10px',
+                          fontSize: '12.5px',
+                          outline: 'none',
+                        }}
+                      >
+                        <option value={0.0}>All Ratings</option>
+                        <option value={4.0}>⭐ 4.0+ Stars</option>
+                        <option value={4.5}>⭐ 4.5+ Stars</option>
+                      </select>
+                    </div>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12.5px', color: '#fbbf24', fontWeight: 600 }}>
+                      <input
+                        type="checkbox"
+                        checked={onlyMissingWebsite}
+                        onChange={(e) => setOnlyMissingWebsite(e.target.checked)}
+                        style={{ cursor: 'pointer', accentColor: '#fbbf24' }}
+                      />
+                      🔥 Only businesses without a website (Web Design Qualification Trick)
                     </label>
-                    <input
-                      type="text"
-                      required
-                      value={mapsLocation}
-                      onChange={(e) => setMapsLocation(e.target.value)}
-                      placeholder="e.g. Chennai, Bangalore"
-                      style={{
-                        width: '100%',
-                        background: '#070913',
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        borderRadius: '8px',
-                        padding: '10px 14px',
-                        color: 'white',
-                      }}
-                    />
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button
                       type="submit"
                       disabled={mapsHarvesting}
                       className="btn-hq"
-                      style={{ padding: '11px 24px', height: '42px' }}
+                      style={{ padding: '12px 32px', height: '46px', display: 'flex', alignItems: 'center', gap: '10px' }}
                     >
-                      {mapsHarvesting ? 'Scraping Google Maps...' : 'Harvest Leads'}
+                      <MapPin size={18} />
+                      {mapsHarvesting ? 'Hunter Agent Crawling Google Maps...' : 'Start Google Maps Crawler'}
                     </button>
                   </div>
                 </form>
 
                 {mapsBanner && (
-                  <div style={{ marginTop: '14px', color: '#34d399', fontSize: '13px' }}>
+                  <div style={{ marginTop: '16px', padding: '12px 16px', borderRadius: '10px', background: 'rgba(52, 211, 153, 0.1)', border: '1px solid rgba(52, 211, 153, 0.3)', color: '#34d399', fontSize: '13px' }}>
                     ✓ {mapsBanner}
                   </div>
                 )}
               </div>
 
-              {/* Leads Table */}
+              {/* Leads Data Table */}
               <div style={{ background: 'var(--bg-card)', borderRadius: '16px', border: '1px solid var(--border-subtle)', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13.5px' }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-subtle)', color: '#94a3b8' }}>
-                      <th style={{ padding: '14px 20px' }}>Company</th>
-                      <th style={{ padding: '14px 20px' }}>Contact</th>
-                      <th style={{ padding: '14px 20px' }}>Industry</th>
-                      <th style={{ padding: '14px 20px' }}>Est. Value</th>
-                      <th style={{ padding: '14px 20px' }}>Source</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leads.map((lead) => (
-                      <tr key={lead.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                        <td style={{ padding: '16px 20px' }}>
-                          <div style={{ fontWeight: 700, color: '#f8fafc' }}>{lead.company_name}</div>
-                          {lead.notes && (
-                            <div style={{ fontSize: '11.5px', color: '#00f0ff', marginTop: '3px' }}>
-                              {lead.notes}
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ padding: '16px 20px', color: '#94a3b8' }}>{lead.contact_name || 'N/A'}</td>
-                        <td style={{ padding: '16px 20px', color: '#94a3b8' }}>{lead.industry}</td>
-                        <td style={{ padding: '16px 20px', fontWeight: 800, color: '#34d399' }}>
-                          ${lead.estimated_value.toLocaleString()}
-                        </td>
-                        <td style={{ padding: '16px 20px', color: '#64748b', fontSize: '12px' }}>{lead.source}</td>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
+                    Extracted Google Maps Directory ({leads.length} Records)
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                    Auto-saved to PostgreSQL `leads`
+                  </span>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-subtle)', color: '#94a3b8' }}>
+                        <th style={{ padding: '12px 18px' }}>Business & Niche</th>
+                        <th style={{ padding: '12px 18px' }}>Phone & Email</th>
+                        <th style={{ padding: '12px 18px' }}>Location / Address</th>
+                        <th style={{ padding: '12px 18px' }}>Website Status</th>
+                        <th style={{ padding: '12px 18px' }}>Est. Value</th>
+                        <th style={{ padding: '12px 18px' }}>Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {leads.map((lead) => {
+                        let parsedNotes: any = null;
+                        if (lead.notes && lead.notes.startsWith('{')) {
+                          try {
+                            parsedNotes = jsonParse(lead.notes);
+                          } catch {
+                            // ignore
+                          }
+                        }
+                        const phone = parsedNotes?.phone || 'Available';
+                        const website = parsedNotes?.website;
+                        const hasWebsite = parsedNotes?.has_website ?? Boolean(website);
+
+                        return (
+                          <tr key={lead.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                            <td style={{ padding: '14px 18px' }}>
+                              <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '14px' }}>
+                                {lead.company_name}
+                              </div>
+                              <span style={{ fontSize: '11px', color: '#00f0ff', background: 'rgba(0, 240, 255, 0.1)', padding: '2px 8px', borderRadius: '6px', display: 'inline-block', marginTop: '4px' }}>
+                                {lead.industry}
+                              </span>
+                            </td>
+
+                            <td style={{ padding: '14px 18px' }}>
+                              <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{phone}</div>
+                              <div style={{ color: '#94a3b8', fontSize: '11.5px', marginTop: '2px' }}>
+                                {lead.contact_email || 'Verified on Maps'}
+                              </div>
+                            </td>
+
+                            <td style={{ padding: '14px 18px', color: '#94a3b8', maxWidth: '240px' }}>
+                              {parsedNotes?.street_address || lead.notes || 'Commercial Center'}
+                            </td>
+
+                            <td style={{ padding: '14px 18px' }}>
+                              {hasWebsite && website ? (
+                                <a
+                                  href={website.startsWith('http') ? website : `https://${website}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    color: '#38bdf8',
+                                    fontSize: '11.5px',
+                                    textDecoration: 'none',
+                                    background: 'rgba(56, 189, 248, 0.1)',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                                  }}
+                                >
+                                  <Globe size={13} />
+                                  Live Website
+                                  <ExternalLink size={10} />
+                                </a>
+                              ) : (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    color: '#fbbf24',
+                                    fontSize: '11.5px',
+                                    background: 'rgba(251, 191, 36, 0.12)',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(251, 191, 36, 0.3)',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  ⚠️ No Website Found
+                                </span>
+                              )}
+                            </td>
+
+                            <td style={{ padding: '14px 18px', fontWeight: 800, color: '#34d399', fontSize: '13.5px' }}>
+                              ${lead.estimated_value.toLocaleString()}
+                            </td>
+
+                            <td style={{ padding: '14px 18px' }}>
+                              <button
+                                onClick={() => {
+                                  const hunter = agents.find((a) => a.name === 'Hunter');
+                                  if (hunter) {
+                                    handleOpenManageModal(hunter);
+                                    setChatMessage(`Draft a personalized cold pitch for ${lead.company_name} offering web development and AI automation.`);
+                                  }
+                                }}
+                                style={{
+                                  background: 'rgba(139, 92, 246, 0.15)',
+                                  border: '1px solid rgba(139, 92, 246, 0.35)',
+                                  color: '#c084fc',
+                                  padding: '5px 12px',
+                                  borderRadius: '6px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Pitch via Hunter
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -1160,13 +1553,122 @@ export function App() {
                   </div>
                 </div>
               ))}
+
+              {chatSending && (
+                <div
+                  style={{
+                    alignSelf: 'flex-start',
+                    background: '#0a0d1e',
+                    border: '1px solid rgba(0, 240, 255, 0.3)',
+                    color: '#00f0ff',
+                    padding: '10px 16px',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <Sparkles size={14} />
+                  <span>{selectedAgent.name} is reasoning on local NVIDIA RTX 4050 GPU...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Suggested Prompt Chips */}
+            <div
+              style={{
+                padding: '8px 20px',
+                background: '#0a0d1e',
+                borderTop: '1px solid var(--border-subtle)',
+                display: 'flex',
+                gap: '8px',
+                overflowX: 'auto',
+              }}
+            >
+              {selectedAgent.name === 'Forge' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setChatMessage('Write a production FastAPI CRUD router for client appointments with PostgreSQL async session')}
+                    className="quick-chip"
+                  >
+                    ⚡ FastAPI Router
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatMessage('Create a responsive React dashboard card component with TypeScript and modern Tailwind styling')}
+                    className="quick-chip"
+                  >
+                    ⚛️ React Component
+                  </button>
+                </>
+              )}
+              {selectedAgent.name === 'Hunter' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setChatMessage('Extract 5 dental clinics in Chicago from Google Maps and evaluate contract opportunities')}
+                    className="quick-chip"
+                  >
+                    🦷 Chicago Dentists
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatMessage('Draft a high-conversion cold email pitch for local businesses without a website')}
+                    className="quick-chip"
+                  >
+                    ✉️ Cold Email Pitch
+                  </button>
+                </>
+              )}
+              {selectedAgent.name === 'Nexus' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setChatMessage('Formulate an autonomous company roadmap to acquire our first 10 software clients')}
+                    className="quick-chip"
+                  >
+                    🚀 Growth Roadmap
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChatMessage('Delegate technical sprint milestones to Forge, Sentinel, and Atlas')}
+                    className="quick-chip"
+                  >
+                    🎯 Sprint Delegation
+                  </button>
+                </>
+              )}
+              {selectedAgent.name === 'Sentinel' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setChatMessage('Perform an OWASP Top 10 security audit on our FastAPI endpoints and propose hardening')}
+                    className="quick-chip"
+                  >
+                    🛡️ Security Audit
+                  </button>
+                </>
+              )}
+              {selectedAgent.name === 'Echo' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setChatMessage('Draft a viral LinkedIn thought leadership post explaining how our AI software agency builds systems 10x faster')}
+                    className="quick-chip"
+                  >
+                    📢 Viral Campaign
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Modal Input Form */}
             <form
               onSubmit={handleSendAgentChat}
               style={{
-                padding: '16px 20px',
+                padding: '14px 20px',
                 borderTop: '1px solid var(--border-subtle)',
                 display: 'flex',
                 gap: '12px',

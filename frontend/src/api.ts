@@ -114,8 +114,22 @@ export interface GoogleMapsHarvestResponse {
   message: string;
   query: string;
   location: string;
-  leads_added: Partial<Lead>[];
+  leads_added: any[];
 }
+
+export interface ActivityItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  time: string;
+  type: string;
+  details?: Record<string, any>;
+}
+
+export const fetchRecentActivity = async (): Promise<ActivityItem[]> => {
+  const res = await apiClient.get<ActivityItem[]>('/analytics/activity');
+  return res.data;
+};
 
 export const fetchOverviewStats = async (): Promise<OverviewStats> => {
   const res = await apiClient.get<OverviewStats>('/analytics/overview');
@@ -165,13 +179,26 @@ export const createLead = async (data: Partial<Lead>): Promise<Lead> => {
 export const harvestGoogleMapsLeads = async (
   query: string,
   location: string,
-  count: number = 5
+  count: number = 5,
+  minRating: number = 0.0,
+  onlyMissingWebsite: boolean = false,
+  multiQueries?: string[]
 ): Promise<GoogleMapsHarvestResponse> => {
   const res = await apiClient.post<GoogleMapsHarvestResponse>('/leads/google-maps-harvest', {
     query,
     location,
     count,
+    min_rating: minRating,
+    only_missing_website: onlyMissingWebsite,
+    multi_queries: multiQueries,
   });
+  return res.data;
+};
+
+export const exportLeadsCsvUrl = `${API_BASE}/leads/export/csv`;
+
+export const exportLeadsJson = async (): Promise<any[]> => {
+  const res = await apiClient.get<any[]>('/leads/export/json');
   return res.data;
 };
 
