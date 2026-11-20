@@ -67,7 +67,10 @@ const jsonParse = (str: string) => {
   }
 };
 
+import { PublicWebsite } from './PublicWebsite';
+
 export function App() {
+  const [viewMode, setViewMode] = useState<'dashboard' | 'public_website'>('dashboard');
   const [activeMenu, setActiveMenu] = useState<
     'dashboard' | 'departments' | 'employees' | 'tasks' | 'communication' | 'analytics' | 'settings' | 'profile' | 'help'
   >('dashboard');
@@ -244,6 +247,10 @@ export function App() {
     }
   };
 
+  if (viewMode === 'public_website') {
+    return <PublicWebsite onOpenDashboard={() => setViewMode('dashboard')} />;
+  }
+
   return (
     <div className="app-layout">
       {/* 1. LEFT SIDEBAR */}
@@ -382,6 +389,24 @@ export function App() {
 
           {/* Right Header: Notifications & Profile */}
           <div className="header-right-actions">
+            <button
+              onClick={() => setViewMode('public_website')}
+              style={{
+                backgroundColor: 'rgba(37,99,235,0.2)',
+                color: '#60A5FA',
+                border: '1px solid rgba(37,99,235,0.5)',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              🌐 Public Website
+            </button>
             {loading ? (
               <span style={{ fontSize: '11px', color: '#00f0ff', background: 'rgba(0,240,255,0.1)', padding: '4px 10px', borderRadius: '12px', border: '1px solid rgba(0,240,255,0.3)', fontWeight: 600 }}>
                 ⚡ Syncing...

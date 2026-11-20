@@ -84,3 +84,12 @@ async def database_health():
             status_code=503,
             detail="Database connection failed. Check server logs.",
         ) from error
+
+
+@app.get("/health/system")
+async def system_diagnostics():
+    """Comprehensive system diagnostic health check."""
+    from app.services.monitoring_service import MonitoringService
+    async with AsyncSessionLocal() as session:
+        service = MonitoringService(session)
+        return await service.get_system_health()

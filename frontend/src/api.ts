@@ -292,3 +292,134 @@ export const syncFullAgentRoster = async (): Promise<any> => {
   return res.data;
 };
 
+export interface ApprovalItem {
+  id: string;
+  task_id: string | null;
+  agent_id: string | null;
+  action_type: string;
+  title: string;
+  description: string | null;
+  preview_payload: Record<string, any> | null;
+  risk_level: string;
+  status: string;
+  created_at: string | null;
+}
+
+export interface ModelItem {
+  name: string;
+  parameter_size: string | null;
+  quantization: string | null;
+  advertised_context: number;
+  runtime_context: number;
+  supports_tools: boolean;
+  supports_vision: boolean;
+  supports_thinking: boolean;
+  supports_json: boolean;
+  task_categories: string[];
+  latency_ms: number | null;
+  tokens_per_sec: number | null;
+  benchmark_score: number | null;
+  status: string;
+  is_enabled: boolean;
+}
+
+export interface MemoryItem {
+  id: string;
+  tier: string;
+  namespace: string;
+  key: string;
+  content: string;
+  metadata: Record<string, any> | null;
+  provenance: string | null;
+  created_at: string | null;
+}
+
+export interface ProposalItem {
+  id: string;
+  brief_id: string;
+  title: string;
+  scope_summary: string;
+  milestones: any[];
+  total_cost_inr: number;
+  status: string;
+  approval_request_id: string | null;
+  created_at: string | null;
+}
+
+export interface VoiceRecordItem {
+  id: string;
+  lead_id: string | null;
+  phone_masked: string;
+  is_test_call: boolean;
+  duration: number;
+  status: string;
+  summary: string | null;
+  created_at: string | null;
+}
+
+export const fetchPendingApprovals = async (): Promise<ApprovalItem[]> => {
+  const res = await apiClient.get<ApprovalItem[]>('/approvals/pending');
+  return res.data;
+};
+
+export const decideApproval = async (id: string, approved: boolean, feedback?: string): Promise<any> => {
+  const res = await apiClient.post(`/approvals/${id}/decide`, { approved, founder_feedback: feedback });
+  return res.data;
+};
+
+export const fetchRegisteredModels = async (): Promise<ModelItem[]> => {
+  const res = await apiClient.get<ModelItem[]>('/models');
+  return res.data;
+};
+
+export const probeOllamaModels = async (): Promise<any> => {
+  const res = await apiClient.post('/models/probe');
+  return res.data;
+};
+
+export const benchmarkModel = async (modelName: string): Promise<any> => {
+  const res = await apiClient.post(`/models/${modelName}/benchmark`);
+  return res.data;
+};
+
+export const fetchCompanyMemories = async (tier?: string, namespace?: string, q?: string): Promise<MemoryItem[]> => {
+  const res = await apiClient.get<MemoryItem[]>('/memory', { params: { tier, namespace, q } });
+  return res.data;
+};
+
+export const storeCompanyMemory = async (data: { tier: string; namespace: string; key: string; content: string }): Promise<any> => {
+  const res = await apiClient.post('/memory', data);
+  return res.data;
+};
+
+export const fetchProposals = async (): Promise<ProposalItem[]> => {
+  const res = await apiClient.get<ProposalItem[]>('/proposals');
+  return res.data;
+};
+
+export const generateProposal = async (briefId: string, hours: number, rate: number): Promise<any> => {
+  const res = await apiClient.post('/proposals/generate', { brief_id: briefId, estimated_hours: hours, rate_per_hour_inr: rate });
+  return res.data;
+};
+
+export const fetchVoiceRecords = async (): Promise<VoiceRecordItem[]> => {
+  const res = await apiClient.get<VoiceRecordItem[]>('/voice/records');
+  return res.data;
+};
+
+export const executeTestVoiceCall = async (phone: string, purpose: string): Promise<any> => {
+  const res = await apiClient.post('/voice/test-call', { phone_number: phone, script_purpose: purpose });
+  return res.data;
+};
+
+export const enforceLeadOptOut = async (leadId: string, reason?: string): Promise<any> => {
+  const res = await apiClient.post(`/voice/opt-out/${leadId}`, {}, { params: { reason } });
+  return res.data;
+};
+
+export const createWorkspace = async (projectId: string, projectName: string, techStack?: string): Promise<any> => {
+  const res = await apiClient.post('/proposals/workspaces/create', { project_id: projectId, project_name: projectName, tech_stack: techStack });
+  return res.data;
+};
+
+
