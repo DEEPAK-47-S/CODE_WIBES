@@ -529,7 +529,7 @@ export function App() {
                 )}
               </div>
 
-              {/* 4 Metric Cards */}
+              {/* 4 Metric Cards (100% Real PostgreSQL Data) */}
               <div className="metric-stats-row">
                 {/* 1. Departments */}
                 <div className="metric-pill-card">
@@ -537,9 +537,9 @@ export function App() {
                     <Building2 size={24} color="#ffffff" />
                   </div>
                   <div className="metric-data">
-                    <h3>{stats?.departments_count ?? 5}</h3>
-                    <p>Departments</p>
-                    <span className="trend">↗ +12%</span>
+                    <h3>{departments.length}</h3>
+                    <p>AI Departments</p>
+                    <span className="trend">100% Operational</span>
                   </div>
                 </div>
 
@@ -549,40 +549,40 @@ export function App() {
                     <Users size={24} color="#ffffff" />
                   </div>
                   <div className="metric-data">
-                    <h3>{stats?.total_agents ?? 8}</h3>
+                    <h3>{agents.length}</h3>
                     <p>AI Employees</p>
-                    <span className="trend">↗ +18%</span>
+                    <span className="trend">RTX 4050 GPU</span>
                   </div>
                 </div>
 
-                {/* 3. Tasks This Month */}
+                {/* 3. Tasks */}
                 <div className="metric-pill-card">
                   <div className="metric-icon-square green">
                     <CheckCircle2 size={24} color="#ffffff" />
                   </div>
                   <div className="metric-data">
-                    <h3>{stats?.total_tasks ? stats.total_tasks + 244 : 247}</h3>
-                    <p>Tasks This Month</p>
-                    <span className="trend">↗ +24%</span>
+                    <h3>{tasks.length}</h3>
+                    <p>Sprint Tasks</p>
+                    <span className="trend">{tasks.filter((t) => t.status === 'in_progress').length} In Progress</span>
                   </div>
                 </div>
 
-                {/* 4. Success Rate */}
+                {/* 4. Completion Rate */}
                 <div className="metric-pill-card">
                   <div className="metric-icon-square gold">
                     <Trophy size={24} color="#ffffff" />
                   </div>
                   <div className="metric-data">
-                    <h3>98%</h3>
-                    <p>Success Rate</p>
-                    <span className="trend">↗ +2%</span>
+                    <h3>{tasks.length > 0 ? Math.round((tasks.filter((t) => t.status === 'completed').length / tasks.length) * 100) : 0}%</h3>
+                    <p>Completion Rate</p>
+                    <span className="trend">{tasks.filter((t) => t.status === 'completed').length} Completed</span>
                   </div>
                 </div>
               </div>
 
               {/* Middle 3 Columns Grid */}
               <div className="dashboard-tri-columns">
-                {/* Left Column: AI Departments */}
+                {/* Left Column: AI Departments (Real DB Mapping) */}
                 <div className="dash-panel">
                   <div className="panel-header">
                     <h3>AI Departments</h3>
@@ -592,77 +592,49 @@ export function App() {
                   </div>
 
                   <div className="departments-2col-grid">
-                    <div className="dept-pill-box">
-                      <div className="dept-pill-icon dev">
-                        <Code size={18} />
-                      </div>
-                      <div className="dept-info">
-                        <h4>Development</h4>
-                        <p>12 Members</p>
-                      </div>
-                      <div className="active-dot-label">
-                        <span className="dot"></span>
-                        <span>Active</span>
-                      </div>
-                    </div>
+                    {departments.map((dept, idx) => {
+                      const count = agents.filter((a) => a.department_id === dept.id).length;
+                      const iconClass =
+                        dept.slug === 'software-development'
+                          ? 'dev'
+                          : dept.slug === 'digital-marketing'
+                          ? 'mkt'
+                          : dept.slug === 'sales-lead-gen'
+                          ? 'sal'
+                          : dept.slug === 'ui-ux-creative'
+                          ? 'hr'
+                          : 'ops';
 
-                    <div className="dept-pill-box">
-                      <div className="dept-pill-icon mkt">
-                        <Megaphone size={18} />
-                      </div>
-                      <div className="dept-info">
-                        <h4>Marketing</h4>
-                        <p>5 Members</p>
-                      </div>
-                      <div className="active-dot-label">
-                        <span className="dot"></span>
-                        <span>Active</span>
-                      </div>
-                    </div>
-
-                    <div className="dept-pill-box">
-                      <div className="dept-pill-icon sal">
-                        <LineChart size={18} />
-                      </div>
-                      <div className="dept-info">
-                        <h4>Sales</h4>
-                        <p>4 Members</p>
-                      </div>
-                      <div className="active-dot-label">
-                        <span className="dot"></span>
-                        <span>Active</span>
-                      </div>
-                    </div>
-
-                    <div className="dept-pill-box">
-                      <div className="dept-pill-icon hr">
-                        <UserCheck size={18} />
-                      </div>
-                      <div className="dept-info">
-                        <h4>HR</h4>
-                        <p>3 Members</p>
-                      </div>
-                      <div className="active-dot-label">
-                        <span className="dot"></span>
-                        <span>Active</span>
-                      </div>
-                    </div>
-
-                    <div className="dept-pill-box" style={{ gridColumn: 'span 2' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div className="dept-pill-icon ops">
-                          <Cog size={18} />
+                      return (
+                        <div
+                          key={dept.id}
+                          className="dept-pill-box"
+                          style={idx === departments.length - 1 && departments.length % 2 !== 0 ? { gridColumn: 'span 2' } : {}}
+                        >
+                          <div className={`dept-pill-icon ${iconClass}`}>
+                            {dept.slug === 'software-development' ? (
+                              <Code size={18} />
+                            ) : dept.slug === 'digital-marketing' ? (
+                              <Megaphone size={18} />
+                            ) : dept.slug === 'sales-lead-gen' ? (
+                              <LineChart size={18} />
+                            ) : dept.slug === 'ui-ux-creative' ? (
+                              <UserCheck size={18} />
+                            ) : (
+                              <Cog size={18} />
+                            )}
+                          </div>
+                          <div className="dept-info">
+                            <h4>{dept.name}</h4>
+                            <p>{count} AI Employee{count === 1 ? '' : 's'}</p>
+                          </div>
+                          <div className="active-dot-label">
+                            <span className="dot"></span>
+                            <span>Active</span>
+                          </div>
                         </div>
-                        <div className="dept-info" style={{ flex: 1 }}>
-                          <h4>Operations</h4>
-                          <p>4 Members</p>
-                        </div>
-                        <div className="active-dot-label">
-                          <span className="dot"></span>
-                          <span>Active</span>
-                        </div>
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -778,90 +750,71 @@ export function App() {
 
               {/* Bottom Row (2 Wide Cards) */}
               <div className="dashboard-bottom-row">
-                {/* 1. Company Performance Chart */}
+                {/* 1. Real Company Performance & Velocity (100% Database Driven) */}
                 <div className="chart-panel-card">
                   <div className="chart-header">
-                    <h3 style={{ fontSize: '15px', fontWeight: 800 }}>Company Performance</h3>
+                    <div>
+                      <h3 style={{ fontSize: '15px', fontWeight: 800 }}>Company Sprint & Pipeline Velocity</h3>
+                      <p style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
+                        Live metrics from local PostgreSQL database
+                      </p>
+                    </div>
                     <div className="chart-legend">
                       <span>
-                        <span className="legend-dot purple"></span>Tasks
+                        <span className="legend-dot purple"></span>In Progress ({tasks.filter((t) => t.status === 'in_progress').length})
                       </span>
                       <span>
-                        <span className="legend-dot blue"></span>Goals
+                        <span className="legend-dot blue"></span>Done ({tasks.filter((t) => t.status === 'completed').length})
                       </span>
-                      <span className="pill-92">92%</span>
+                      <span className="pill-92" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
+                        {tasks.length > 0 ? Math.round((tasks.filter((t) => t.status === 'completed').length / tasks.length) * 100) : 0}% Done
+                      </span>
                     </div>
                   </div>
 
-                  {/* SVG Dual Smooth Curves Graph */}
-                  <div style={{ position: 'relative', width: '100%', height: '170px' }}>
-                    <svg viewBox="0 0 500 150" style={{ width: '100%', height: '100%' }}>
-                      <defs>
-                        <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                          <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.4" />
-                          <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.0" />
-                        </linearGradient>
-                        <linearGradient id="blueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.3" />
-                          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
-                        </linearGradient>
-                      </defs>
+                  {/* Real Metrics Visualization */}
+                  <div style={{ padding: '16px 0 0', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {/* Progress Bar */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                        <span style={{ color: '#94a3b8' }}>Overall Sprint Completion</span>
+                        <span style={{ color: '#00f0ff', fontWeight: 700 }}>
+                          {tasks.filter((t) => t.status === 'completed').length} / {tasks.length} Tasks
+                        </span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '9999px', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${tasks.length > 0 ? Math.min(100, Math.round((tasks.filter((t) => t.status === 'completed').length / tasks.length) * 100)) : 0}%`,
+                            background: 'linear-gradient(90deg, #00f0ff, #10b981)',
+                            borderRadius: '9999px',
+                            transition: 'width 0.5s ease',
+                          }}
+                        />
+                      </div>
+                    </div>
 
-                      {/* Area Fills */}
-                      <path
-                        d="M 20 110 Q 90 90 160 70 T 300 65 T 440 30 L 480 25 L 480 140 L 20 140 Z"
-                        fill="url(#purpleGrad)"
-                      />
-                      <path
-                        d="M 20 120 Q 90 110 160 95 T 300 85 T 440 60 L 480 50 L 480 140 L 20 140 Z"
-                        fill="url(#blueGrad)"
-                      />
-
-                      {/* Purple Curve (Tasks) */}
-                      <path
-                        d="M 20 110 Q 90 90 160 70 T 300 65 T 440 30 L 480 25"
-                        fill="none"
-                        stroke="#8b5cf6"
-                        strokeWidth="3"
-                      />
-                      {/* Cyan/Blue Curve (Goals) */}
-                      <path
-                        d="M 20 120 Q 90 110 160 95 T 300 85 T 440 60 L 480 50"
-                        fill="none"
-                        stroke="#38bdf8"
-                        strokeWidth="3"
-                      />
-
-                      {/* Data Dots */}
-                      <circle cx="20" cy="110" r="4" fill="#8b5cf6" />
-                      <circle cx="95" cy="90" r="4" fill="#8b5cf6" />
-                      <circle cx="160" cy="70" r="4" fill="#8b5cf6" />
-                      <circle cx="230" cy="75" r="4" fill="#8b5cf6" />
-                      <circle cx="300" cy="65" r="4" fill="#8b5cf6" />
-                      <circle cx="370" cy="45" r="4" fill="#8b5cf6" />
-                      <circle cx="440" cy="30" r="5" fill="#c084fc" />
-
-                      <circle cx="440" cy="60" r="5" fill="#38bdf8" />
-                    </svg>
-
-                    {/* Day Labels */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        padding: '0 20px',
-                        fontSize: '11px',
-                        color: '#64748b',
-                        fontWeight: 600,
-                      }}
-                    >
-                      <span>Mon</span>
-                      <span>Tue</span>
-                      <span>Wed</span>
-                      <span>Thu</span>
-                      <span>Fri</span>
-                      <span>Sat</span>
-                      <span>Sun</span>
+                    {/* 3 Metric Pills */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                      <div style={{ background: '#0a0d1e', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '10px 12px' }}>
+                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>Active Projects</div>
+                        <div style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff', marginTop: '2px' }}>
+                          {projects.length}
+                        </div>
+                      </div>
+                      <div style={{ background: '#0a0d1e', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '10px 12px' }}>
+                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>Pending Tasks</div>
+                        <div style={{ fontSize: '16px', fontWeight: 800, color: '#fbbf24', marginTop: '2px' }}>
+                          {tasks.filter((t) => t.status === 'pending').length}
+                        </div>
+                      </div>
+                      <div style={{ background: '#0a0d1e', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '10px 12px' }}>
+                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>CRM Pipeline</div>
+                        <div style={{ fontSize: '16px', fontWeight: 800, color: '#34d399', marginTop: '2px' }}>
+                          ${(stats?.pipeline_value ?? 0).toLocaleString()}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

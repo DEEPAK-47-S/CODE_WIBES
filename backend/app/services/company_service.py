@@ -221,39 +221,8 @@ class CompanyService:
         await self.db.commit()
 
     async def _seed_leads(self) -> None:
-        leads_data = [
-            Lead(
-                company_name="Apex Logistics Global",
-                contact_name="Sarah Jenkins",
-                contact_email="s.jenkins@apexlogistics.com",
-                industry="Supply Chain & Logistics",
-                status="proposal_sent",
-                estimated_value=18500.0,
-                source="AI Lead Hunter",
-                notes="Wants AI dispatching and automated inventory prediction software.",
-            ),
-            Lead(
-                company_name="Nova Health Solutions",
-                contact_name="Dr. Marcus Vance",
-                contact_email="vance@novahealth.io",
-                industry="HealthTech",
-                status="contacted",
-                estimated_value=32000.0,
-                source="Digital Marketing Campaign",
-                notes="Requires HIPAA-compliant patient communication portal with AI intake.",
-            ),
-            Lead(
-                company_name="Krypton Real Estate Group",
-                contact_name="David Chen",
-                contact_email="david@kryptongroup.com",
-                industry="Real Estate",
-                status="new",
-                estimated_value=12000.0,
-                source="Inbound AI Portal",
-                notes="Looking for automated property valuation and client lead triage tool.",
-            ),
-        ]
-        self.db.add_all(leads_data)
+        """Leads are generated dynamically by Hunter Agent and Google Maps Harvester."""
+        pass
         await self.db.commit()
 
     # Department operations
