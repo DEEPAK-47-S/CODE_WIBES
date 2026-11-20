@@ -223,3 +223,72 @@ export const chatWithAgent = async (agentId: string, message: string): Promise<A
   });
   return res.data;
 };
+
+export interface CompanySettings {
+  id: string;
+  emergency_pause_all_agents: boolean;
+  disable_external_actions: boolean;
+  allow_calling_test_mode: boolean;
+  allow_production_calling: boolean;
+  founder_verified_phone: string | null;
+  max_concurrent_models: number;
+  daily_call_limit: number;
+  monthly_budget_cap_usd: number;
+  updated_at: string | null;
+}
+
+export interface OrgChartNode {
+  id: string;
+  name: string;
+  role: string;
+  model: string | null;
+  code?: string;
+}
+
+export interface DepartmentNode {
+  department_id: string;
+  name: string;
+  slug: string;
+  head: OrgChartNode | null;
+  specialists_count: number;
+  specialists: OrgChartNode[];
+}
+
+export interface OrgChartData {
+  founder: string;
+  central_manager: OrgChartNode | null;
+  total_departments: number;
+  total_agents: number;
+  departments: DepartmentNode[];
+}
+
+export const fetchCompanySettings = async (): Promise<CompanySettings> => {
+  const res = await apiClient.get<CompanySettings>('/settings');
+  return res.data;
+};
+
+export const updateCompanySettings = async (data: Partial<CompanySettings>): Promise<any> => {
+  const res = await apiClient.patch('/settings', data);
+  return res.data;
+};
+
+export const triggerEmergencyPause = async (): Promise<any> => {
+  const res = await apiClient.post('/settings/emergency-pause');
+  return res.data;
+};
+
+export const triggerResumeOperations = async (): Promise<any> => {
+  const res = await apiClient.post('/settings/resume');
+  return res.data;
+};
+
+export const fetchOrgChart = async (): Promise<OrgChartData> => {
+  const res = await apiClient.get<OrgChartData>('/agents/org-chart');
+  return res.data;
+};
+
+export const syncFullAgentRoster = async (): Promise<any> => {
+  const res = await apiClient.post('/agents/sync-roster');
+  return res.data;
+};
+

@@ -226,9 +226,126 @@ class CompanyService:
         await self.db.commit()
 
     # Department operations
-    async def get_departments(self) -> List[Department]:
-        result = await self.db.execute(select(Department).order_by(Department.name))
+    async def get_departments(self, active_only: bool = True) -> List[Department]:
+        query = select(Department)
+        if active_only:
+            query = query.where(Department.is_active.is_(True))
+        result = await self.db.execute(query.order_by(Department.slug))
         return list(result.scalars().all())
+
+    async def sync_full_organization(self) -> dict:
+        """Synchronize the 10 canonical departments and exactly 100 AI role profiles + NEXUS."""
+        from app.agents.catalog import DEPARTMENTS_CATALOG, build_full_agent_roster
+
+        # 1. Sync 10 Canonical Departments
+        dept_map = {}
+        for d_info in DEPARTMENTS_CATALOG:
+            res = await self.db.execute(
+                select(Department).where(
+                    (Department.slug == d_info["slug"]) | (Department.name == d_info["name"])
+                )
+            )
+            dept = res.scalar_one_or_none()
+            if not dept:
+                dept = Department(
+                    name=d_info["name"],
+                    slug=d_info["slug"],
+                    description=d_info["description"],
+                )
+                self.db.add(dept)
+                await self.db.flush()
+            else:
+                dept.name = d_info["name"]
+                dept.slug = d_info["slug"]
+                dept.description = d_info["description"]
+            dept_map[d_info["code"]] = dept
+
+        # 2. Sync Full Agent Roster (100 departmental profiles + NEXUS)
+        roster = build_full_agent_roster()
+        synced_count = 0
+        for p in roster:
+            dept = dept_map.get(p.get("department_code"))
+            dept_id = dept.id if dept else None
+
+            res = await self.db.execute(select(Agent).where(Agent.name == p["name"]))
+            agent = res.scalar_one_or_none()
+            if not agent:
+                agent = Agent(
+                    name=p["name"],
+                    role=p["role"],
+                    description=p["system_instructions"][:200],
+                    department_id=dept_id,
+                    status="active",
+                    provider="local",
+                    model_name=p["model_preference"],
+                    capabilities=p,
+                    is_active=True,
+                )
+                self.db.add(agent)
+            else:
+                agent.role = p["role"]
+                agent.model_name = p["model_preference"]
+                if dept_id:
+                    agent.department_id = dept_id
+                agent.capabilities = p
+                agent.is_active = True
+                agent.status = "active"
+            synced_count += 1
+
+        await self.db.commit()
+        return {
+            "departments_count": len(DEPARTMENTS_CATALOG),
+            "agents_synced": synced_count,
+            "status": "success",
+        }
+
+    async def get_org_chart(self) -> dict:
+        """Return the hierarchical org chart: Founder -> NEXUS -> 10 Dept Heads -> Specialists."""
+        depts = await self.get_departments()
+        agents = await self.get_agents()
+
+        nexus = next((a for a in agents if a.name.lower() == "nexus"), None)
+
+        departments_tree = []
+        for d in depts:
+            dept_agents = [a for a in agents if a.department_id == d.id]
+            head = next((a for a in dept_agents if (a.capabilities or {}).get("is_head", False)), None)
+            specialists = [a for a in dept_agents if a != head]
+            departments_tree.append({
+                "department_id": str(d.id),
+                "name": d.name,
+                "slug": d.slug,
+                "head": {
+                    "id": str(head.id),
+                    "name": head.name,
+                    "role": head.role,
+                    "model": head.model_name,
+                } if head else None,
+                "specialists_count": len(specialists),
+                "specialists": [
+                    {
+                        "id": str(s.id),
+                        "name": s.name,
+                        "role": s.role,
+                        "model": s.model_name,
+                        "code": (s.capabilities or {}).get("code"),
+                    }
+                    for s in specialists
+                ],
+            })
+
+        return {
+            "founder": "Founder / Owner (Human Final Authority)",
+            "central_manager": {
+                "id": str(nexus.id) if nexus else None,
+                "name": "Nexus",
+                "role": "Chief of Staff & Central AI Manager",
+                "model": nexus.model_name if nexus else "qwen3.5:4b",
+            } if nexus else None,
+            "total_departments": len(departments_tree),
+            "total_agents": len(agents),
+            "departments": departments_tree,
+        }
 
     # Agent operations
     async def get_agents(self) -> List[Agent]:

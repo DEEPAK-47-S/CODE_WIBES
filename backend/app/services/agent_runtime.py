@@ -121,6 +121,28 @@ class AgentRuntimeService:
         if not agent:
             raise ValueError(f"Agent {agent_id} not found.")
 
+        # 1. Global Safety Kill Switch Check
+        from app.services.audit_service import AuditService
+        audit_service = AuditService(self.db)
+        allowed, reason = await audit_service.verify_execution_policy("agent_task")
+        if not allowed:
+            await audit_service.log_event(
+                actor_type="system",
+                action="agent_task_blocked",
+                actor_id=agent_id,
+                details={"reason": reason, "prompt_preview": prompt[:100]},
+                policy_decision="BLOCKED",
+                risk_level="HIGH",
+            )
+            return {
+                "agent_id": str(agent.id),
+                "agent_name": agent.name,
+                "role": agent.role,
+                "model": "none",
+                "reasoning": f"Execution halted by Policy: {reason}",
+                "status": "blocked",
+            }
+
         cfg = AGENT_CONFIG.get(agent.name, {
             "model": agent.model_name or "llama3.1:latest",
             "system": f"You are {agent.name}, {agent.role} at CODE WIBES.",

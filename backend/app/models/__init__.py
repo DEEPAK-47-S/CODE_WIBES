@@ -6,6 +6,7 @@ from app.models.project import Project
 from app.models.task import Task
 from app.models.activity_log import ActivityLog
 from app.models.lead import Lead
+from app.models.company_setting import CompanySetting
 
 __all__ = [
     "User",
@@ -15,4 +16,5 @@ __all__ = [
     "Task",
     "ActivityLog",
     "Lead",
+    "CompanySetting",
 ]

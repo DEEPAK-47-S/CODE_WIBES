@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
         try:
             service = CompanyService(session)
             await service.seed_initial_company()
+            await service.sync_full_organization()
         except Exception as e:
             print(f"Warning during seed: {e}")
 
