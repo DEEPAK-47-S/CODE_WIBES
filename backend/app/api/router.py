@@ -21,6 +21,7 @@ from app.api.billing import router as billing_router
 from app.api.marketing import router as marketing_router
 from app.api.website_factory import router as website_factory_router
 from app.api.client_portal import router as client_portal_router
+from app.api.reviews import router as reviews_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -44,4 +45,5 @@ api_v1_router.include_router(billing_router)
 api_v1_router.include_router(marketing_router)
 api_v1_router.include_router(website_factory_router)
 api_v1_router.include_router(client_portal_router)
+api_v1_router.include_router(reviews_router)
 

@@ -9,6 +9,7 @@ from app.database.session import get_db
 from app.services.nexus_manager import NexusManagerService
 from app.services.autopilot_service import AutopilotService
 from app.services.executive_briefing_service import ExecutiveBriefingService
+from app.services.autonomous_scheduler import AutonomousSchedulerService
 
 router = APIRouter(prefix="/nexus", tags=["nexus"])
 
@@ -94,5 +95,15 @@ async def get_executive_daily_briefing(db: AsyncSession = Depends(get_db)):
     briefing_service = ExecutiveBriefingService(db)
     try:
         return await briefing_service.generate_daily_briefing()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/pulse")
+async def trigger_company_pulse(db: AsyncSession = Depends(get_db)):
+    """Executes a proactive autonomous operations pulse across leads, receivables, and QA."""
+    scheduler = AutonomousSchedulerService(db)
+    try:
+        return await scheduler.execute_company_pulse()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

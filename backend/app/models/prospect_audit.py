@@ -30,3 +30,7 @@ class ProspectAudit(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     outreach_pitch_draft: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     lead = relationship("Lead", backref="audits")
+
+    @property
+    def heuristic_score(self) -> int:
+        return self.overall_score

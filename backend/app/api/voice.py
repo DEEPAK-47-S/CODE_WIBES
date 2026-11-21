@@ -1,7 +1,7 @@
 """API routes for Voice Calling, Opt-Out Enforcement, and Founder Alert Channel."""
 import uuid
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -100,4 +100,17 @@ async def handle_telephony_webhook(payload: dict, db: AsyncSession = Depends(get
     """Receives live call completion events from ElevenLabs or Twilio gateways."""
     service = VoiceService(db)
     return await service.ingest_telephony_webhook(payload)
+
+
+@router.post("/twiml-inbound")
+async def handle_inbound_voice_twiml():
+    """Returns compliant TwiML for incoming telephone inquiries with AriaVoice introduction in Tamil & English."""
+    twiml = """<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say language="en-IN">Welcome to CODE WIBES TECHNOLOGIES. Connecting you with our AI Software Advisory team.</Say>
+    <Pause length="1"/>
+    <Say language="ta-IN">வணக்கம்! CODE WIBES TECHNOLOGIES நிறுவனத்திற்கு உங்களை வரவேற்கிறோம். எங்கள் மென்பொருள் திட்ட ஒருங்கிணைப்பாளர் உங்களுடன் இணைகிறார்.</Say>
+    <Record maxLength="60" action="/api/v1/voice/webhook" playBeep="true"/>
+</Response>"""
+    return Response(content=twiml, media_type="application/xml")
 

@@ -18,6 +18,7 @@ from app.models.contract import Contract
 from app.models.marketing_post import MarketingPost
 from app.models.prospect_audit import ProspectAudit
 from app.models.memory_embedding import MemoryEmbedding
+from app.models.customer_review import CustomerReview
 
 __all__ = [
     "User",
@@ -42,4 +43,5 @@ __all__ = [
     "MarketingPost",
     "ProspectAudit",
     "MemoryEmbedding",
+    "CustomerReview",
 ]
