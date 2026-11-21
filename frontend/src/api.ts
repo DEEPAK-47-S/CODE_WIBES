@@ -568,5 +568,38 @@ export const semanticSearchMemories = async (q: string): Promise<any[]> => {
   return res.data;
 };
 
+export interface AutopilotResult {
+  status: string;
+  business_name: string;
+  project_id: string;
+  lead_id: string;
+  audit_score: number;
+  staging_preview_url: string;
+  invoice_number: string;
+  total_inr: number;
+  payment_link: string;
+  contract_number: string;
+  whatsapp_click_to_chat: string;
+  pipeline_log: Array<{ stage: string; department: string; agent: string; outcome: string }>;
+}
+
+export const runCompanyAutopilot = async (
+  business_name: string,
+  website_url: string,
+  phone?: string,
+  location?: string,
+  category?: string
+): Promise<AutopilotResult> => {
+  const res = await apiClient.post<AutopilotResult>('/nexus/autopilot/run', {
+    business_name,
+    website_url,
+    phone,
+    location,
+    category,
+  });
+  return res.data;
+};
+
+
 
 

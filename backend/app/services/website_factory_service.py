@@ -250,7 +250,8 @@ export default function App() {{{{
             json.dump(manifest, f, indent=2)
 
         return {
-            "status": "codebase_ready",
+            "status": "workspace_ready",
+            "codebase_status": "codebase_ready",
             "project_id": str(project_id),
             "workspace_path": str(workspace_dir),
             "staging_preview_url": manifest["staging_preview_url"],

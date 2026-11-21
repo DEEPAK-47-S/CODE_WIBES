@@ -46,12 +46,17 @@ class GoogleMapsLeadHarvester:
         scraped_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         harvested_items: List[Dict[str, Any]] = []
 
-        # 1. Google Places API (New) if key configured
-        if settings.GOOGLE_MAPS_API_KEY:
+        # 1. Google Places API (New) if key configured in DB or .env
+        from app.services.audit_service import AuditService
+        audit_service = AuditService(self.db)
+        comp_settings = await audit_service.get_or_create_settings()
+        active_api_key = comp_settings.google_maps_api_key or settings.GOOGLE_MAPS_API_KEY
+
+        if active_api_key:
             try:
                 headers = {
                     "Content-Type": "application/json",
-                    "X-Goog-Api-Key": settings.GOOGLE_MAPS_API_KEY,
+                    "X-Goog-Api-Key": active_api_key,
                     "X-Goog-FieldMask": (
                         "places.id,places.displayName,places.formattedAddress,"
                         "places.nationalPhoneNumber,places.websiteUri,"

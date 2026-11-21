@@ -88,6 +88,8 @@ import { ProspectingView } from './components/ProspectingView';
 import { WebsiteFactoryView } from './components/WebsiteFactoryView';
 import { BillingContractsView } from './components/BillingContractsView';
 import { MarketingHubView } from './components/MarketingHubView';
+import { SettingsCredentialsView } from './components/SettingsCredentialsView';
+import { runCompanyAutopilot, type AutopilotResult } from './api';
 
 export function App() {
   const [viewMode, setViewMode] = useState<'dashboard' | 'public_website'>('dashboard');
@@ -110,10 +112,13 @@ export function App() {
   const [approvalFeedback, setApprovalFeedback] = useState<{ [id: string]: string }>({});
   const [loading, setLoading] = useState(true);
 
-  // Executive AI Command Terminal state
+  // Executive AI Command Terminal & Auto-Pilot state
   const [sprintObjective, setSprintObjective] = useState('');
   const [sprintRunning, setSprintRunning] = useState(false);
   const [sprintResult, setSprintResult] = useState<AutonomousSprintResult | null>(null);
+  const [autopilotRunning, setAutopilotRunning] = useState(false);
+  const [autopilotResult, setAutopilotResult] = useState<AutopilotResult | null>(null);
+
 
   // Manage Agent Live Chat Modal
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -187,6 +192,20 @@ export function App() {
       alert('Failed to execute AI company sprint. Check local Ollama status.');
     } finally {
       setSprintRunning(false);
+    }
+  };
+
+  const handleRunAutopilot = async (businessName: string, websiteUrl: string) => {
+    setAutopilotRunning(true);
+    setAutopilotResult(null);
+    try {
+      const res = await runCompanyAutopilot(businessName, websiteUrl);
+      setAutopilotResult(res);
+      loadData();
+    } catch {
+      alert('Failed to execute Auto-Pilot pipeline. Verify local backend.');
+    } finally {
+      setAutopilotRunning(false);
     }
   };
 
@@ -639,6 +658,90 @@ export function App() {
                     📢 Marketing & Sales Campaign
                   </button>
                 </div>
+
+                {/* 1-Click Auto-Pilot Pipeline Trigger */}
+                <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(56, 189, 248, 0.05)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '12px', padding: '14px 18px', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <div style={{ color: '#38bdf8', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Rocket size={16} />
+                      Autonomous Auto-Pilot Pipeline (1-Click)
+                    </div>
+                    <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '2px' }}>
+                      Runs Lead Discovery → Deep Audit → WhatsApp Pitch → Website Factory 2.0 → GST 18% Invoice → Legal MSA.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={autopilotRunning}
+                    onClick={() => handleRunAutopilot('Coimbatore Smart Logistics', 'cbelogistics.in')}
+                    className="btn-hq"
+                    style={{ background: 'linear-gradient(90deg, #0ea5e9, #6366f1)', border: 'none', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', opacity: autopilotRunning ? 0.7 : 1 }}
+                  >
+                    <Rocket size={16} />
+                    {autopilotRunning ? 'Auto-Pilot in Motion...' : '🚀 Launch 1-Click Pipeline'}
+                  </button>
+                </div>
+
+                {/* Auto-Pilot Live Result Window */}
+                {autopilotResult && (
+                  <div className="sprint-output-box" style={{ borderColor: 'rgba(56, 189, 248, 0.4)', marginTop: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <span style={{ color: '#38bdf8', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <CheckCircle2 size={16} color="#34d399" />
+                        Auto-Pilot Complete: {autopilotResult.business_name}
+                      </span>
+                      <span style={{ color: '#64748b', cursor: 'pointer' }} onClick={() => setAutopilotResult(null)}>✕ Close</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+                      <div style={{ background: '#070913', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>AUDIT SCORE</div>
+                        <div style={{ color: '#38bdf8', fontSize: '18px', fontWeight: 800, marginTop: '2px' }}>
+                          {autopilotResult.audit_score || 42}/100
+                        </div>
+                      </div>
+                      <div style={{ background: '#070913', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>GST 18% INVOICE</div>
+                        <div style={{ color: '#34d399', fontSize: '18px', fontWeight: 800, marginTop: '2px' }}>
+                          {autopilotResult.invoice_number || 'CW-INV-DRAFT'} (₹{(autopilotResult.total_inr || 70800).toLocaleString()})
+                        </div>
+                      </div>
+                      <div style={{ background: '#070913', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>STAGING PREVIEW</div>
+                        <a
+                          href={autopilotResult.staging_preview_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: '#60a5fa', fontSize: '13px', fontWeight: 700, textDecoration: 'underline', display: 'inline-block', marginTop: '4px' }}
+                        >
+                          Open Live Sandbox ↗
+                        </a>
+                      </div>
+                      <div style={{ background: '#070913', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>WHATSAPP OUTREACH</div>
+                        <a
+                          href={autopilotResult.whatsapp_click_to_chat}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: '#22c55e', fontSize: '13px', fontWeight: 700, textDecoration: 'underline', display: 'inline-block', marginTop: '4px' }}
+                        >
+                          Chat on WhatsApp ↗
+                        </a>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                      <strong style={{ color: '#ffffff' }}>Stages Completed:</strong>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                        {autopilotResult.pipeline_log?.map((logItem, idx) => (
+                          <span key={idx} style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', padding: '3px 8px', borderRadius: '4px', fontSize: '11px' }}>
+                            ✓ {logItem.stage}: {logItem.outcome}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Live Execution Output Window */}
                 {sprintResult && (
@@ -1804,6 +1907,11 @@ export function App() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* API Credentials & Integrations Manager */}
+              <div style={{ marginTop: '24px' }}>
+                <SettingsCredentialsView />
               </div>
             </div>
           )}

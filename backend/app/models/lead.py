@@ -46,5 +46,13 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     provenance_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    @property
+    def business_name(self) -> str:
+        return self.company_name
+
+    @business_name.setter
+    def business_name(self, value: str) -> None:
+        self.company_name = value
+
     def __repr__(self) -> str:
         return f"<Lead {self.company_name} ({self.status}) place_id={self.place_id}>"

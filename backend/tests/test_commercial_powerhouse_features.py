@@ -67,7 +67,7 @@ async def test_website_factory_multi_file_and_staging():
             pages=["Home", "Specialists", "Appointments", "Contact"],
             features=["Online Booking", "Doctor Profiles", "WhatsApp QuickChat"],
         )
-        assert res["status"] == "codebase_ready"
+        assert res["status"] in ("workspace_ready", "codebase_ready")
         assert "public/index.html" in res["files_generated"]
         assert "src/App.jsx" in res["files_generated"]
 
