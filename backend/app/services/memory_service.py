@@ -87,6 +87,15 @@ class MemoryService:
         res = await self.db.execute(query)
         return list(res.scalars().all())
 
+    async def get_memories_by_tier(
+        self,
+        tier: str,
+        namespace: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[CompanyMemory]:
+        """Retrieve memory records from a specific tier, optionally filtered by namespace."""
+        return await self.search_memory(tier=tier, namespace=namespace, limit=limit)
+
     async def create_task_checkpoint(
         self,
         task_id: uuid.UUID,

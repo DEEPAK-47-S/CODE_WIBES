@@ -1,4 +1,5 @@
 """High-performance Agent Runtime executing real local Ollama models on RTX 4050 GPU."""
+import asyncio
 import uuid
 from typing import Any, Dict, List, Optional
 import httpx
@@ -12,6 +13,9 @@ from app.models.project import Project
 from app.models.lead import Lead
 
 OLLAMA_API = "http://127.0.0.1:11434/api/generate"
+
+# Global GPU Lock enforcing sequential local model execution on laptop RTX 4050 (6GB VRAM)
+_OLLAMA_GPU_LOCK = asyncio.Lock()
 
 # Agent-specific system personalities and optimal Ollama models
 AGENT_CONFIG = {
@@ -88,26 +92,31 @@ class AgentRuntimeService:
         self.db = db
 
     async def _query_ollama(self, model: str, system_prompt: str, user_prompt: str) -> str:
-        """Query local Ollama with timeout & error recovery."""
-        try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                res = await client.post(
-                    OLLAMA_API,
-                    json={
-                        "model": model,
-                        "system": system_prompt,
-                        "prompt": user_prompt,
-                        "stream": False,
-                    },
-                )
-                if res.status_code == 200:
-                    data = res.json()
-                    return data.get("response", "").strip()
-                return f"[Ollama Error {res.status_code}]: {res.text}"
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            return f"[Local Inference Exception - {type(e).__name__}]: {str(e)}"
+        """Query local Ollama sequentially with 8192 token limit and error recovery."""
+        async with _OLLAMA_GPU_LOCK:
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    res = await client.post(
+                        OLLAMA_API,
+                        json={
+                            "model": model,
+                            "system": system_prompt,
+                            "prompt": user_prompt,
+                            "stream": False,
+                            "options": {
+                                "num_ctx": 8192,
+                                "temperature": 0.2,
+                            },
+                        },
+                    )
+                    if res.status_code == 200:
+                        data = res.json()
+                        return data.get("response", "").strip()
+                    return f"[Ollama Error {res.status_code}]: {res.text}"
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                return f"[Local Inference Exception - {type(e).__name__}]: {str(e)}"
 
     async def execute_agent_task(
         self,
@@ -251,92 +260,10 @@ class AgentRuntimeService:
 
     async def run_autonomous_company_sprint(self, objective: str) -> Dict[str, Any]:
         """
-        Executes a real end-to-end multi-agent cascade:
-        1. Nexus (CEO - llama3.1) sets strategy
-        2. Hunter (Sales - llama3.1) prospects real leads
-        3. Forge (Coder - qwen2.5-coder) writes software implementation
-        4. Sentinel (QA - qwen2.5-coder) creates tests
-        All saved to PostgreSQL!
+        Delegates full end-to-end sprint execution to NEXUS Central AI Manager.
+        NEXUS orchestrates: Plan → Delegate → Execute → Verify → Report.
+        Zero fake leads or synthetic data injected.
         """
-        # Fetch agents
-        agents_dict = {}
-        all_agents = (await self.db.execute(select(Agent))).scalars().all()
-        for a in all_agents:
-            agents_dict[a.name] = a
-
-        nexus = agents_dict.get("Nexus")
-        hunter = agents_dict.get("Hunter")
-        forge = agents_dict.get("Forge")
-        sentinel = agents_dict.get("Sentinel")
-
-        # 1. CEO Strategy
-        ceo_response = ""
-        if nexus:
-            ceo_prompt = f"Executive Objective from Human Owner Deepak: '{objective}'. As CEO, output a 3-step action roadmap."
-            ceo_response = await self._query_ollama(
-                AGENT_CONFIG["Nexus"]["model"],
-                AGENT_CONFIG["Nexus"]["system"],
-                ceo_prompt
-            )
-
-        # 2. Forge writes code
-        code_response = ""
-        if forge:
-            forge_prompt = f"Objective: '{objective}'. Write a modular Python/FastAPI or React implementation with clean architecture."
-            code_response = await self._query_ollama(
-                AGENT_CONFIG["Forge"]["model"],
-                AGENT_CONFIG["Forge"]["system"],
-                forge_prompt
-            )
-
-        # 3. Create a real software project in DB
-        new_project = Project(
-            name=f"Sprint: {objective[:50]}",
-            description=f"Automated project launched by CEO Nexus. Implementation details:\n{code_response[:300]}...",
-            status="in_progress",
-            priority="high",
-            progress=40,
-        )
-        self.db.add(new_project)
-        await self.db.flush()
-
-        # 4. Create tasks in DB
-        t1 = Task(
-            title=f"Core Implementation: {objective[:40]}",
-            description=code_response[:600],
-            status="in_progress",
-            priority="critical",
-            project_id=new_project.id,
-            assigned_agent_id=forge.id if forge else None,
-        )
-        t2 = Task(
-            title=f"Executive QA Review: {objective[:40]}",
-            description="Verify code architecture and validate against security requirements.",
-            status="pending",
-            priority="high",
-            project_id=new_project.id,
-            assigned_agent_id=sentinel.id if sentinel else None,
-        )
-        self.db.add_all([t1, t2])
-
-        # 5. Hunter generates a prospective client lead
-        new_lead = Lead(
-            company_name=f"Client for {objective[:30]}",
-            contact_name="Lead Gen Prospect",
-            industry="Enterprise Technology",
-            status="new",
-            estimated_value=25000.0,
-            source="Autonomous Hunter Agent",
-            notes=f"Auto-generated for company sprint: {objective}",
-        )
-        self.db.add(new_lead)
-        await self.db.commit()
-
-        return {
-            "objective": objective,
-            "project_id": str(new_project.id),
-            "ceo_plan": ceo_response,
-            "code_generated": code_response,
-            "lead_acquired": new_lead.company_name,
-            "status": "COMPLETED",
-        }
+        from app.services.nexus_manager import NexusManagerService
+        nexus_mgr = NexusManagerService(self.db)
+        return await nexus_mgr.run_end_to_end_sprint(objective)

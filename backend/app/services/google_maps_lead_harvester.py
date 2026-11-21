@@ -39,8 +39,8 @@ class GoogleMapsLeadHarvester:
         only_missing_website: bool = False,
     ) -> List[Dict[str, Any]]:
         """
-        Harvest structured B2B client listings from Google Maps.
-        Supports filtering by rating (>4.0) and missing-website trick for agency outreach.
+        Harvest structured B2B client listings from Google Places API (New).
+        Strictly enforces official API usage, Place ID deduplication, and zero fake data.
         """
         search_text = f"{query} in {location}" if location else query
         scraped_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -53,7 +53,7 @@ class GoogleMapsLeadHarvester:
                     "Content-Type": "application/json",
                     "X-Goog-Api-Key": settings.GOOGLE_MAPS_API_KEY,
                     "X-Goog-FieldMask": (
-                        "places.displayName,places.formattedAddress,"
+                        "places.id,places.displayName,places.formattedAddress,"
                         "places.nationalPhoneNumber,places.websiteUri,"
                         "places.rating,places.userRatingCount,places.location,"
                         "places.primaryTypeDisplayName,places.regularOpeningHours"
@@ -68,44 +68,54 @@ class GoogleMapsLeadHarvester:
                     if resp.status_code == 200:
                         places = resp.json().get("places", [])
                         for p in places:
+                            place_id = p.get("id")
+                            if place_id:
+                                # Deduplication check: verify Place ID does not already exist
+                                existing = await self.db.execute(
+                                    select(Lead.id).where(Lead.place_id == place_id)
+                                )
+                                if existing.scalar_one_or_none():
+                                    continue
+
                             name = p.get("displayName", {}).get("text", "Unknown Business")
                             addr = p.get("formattedAddress", location)
-                            phone = p.get("nationalPhoneNumber", "")
-                            web = p.get("websiteUri", "")
-                            rating = float(p.get("rating", 4.5))
-                            reviews = int(p.get("userRatingCount", 24))
+                            phone = p.get("nationalPhoneNumber")
+                            web = p.get("websiteUri")
+                            rating = float(p.get("rating", 0.0)) if p.get("rating") else None
+                            reviews = int(p.get("userRatingCount", 0)) if p.get("userRatingCount") else None
                             loc = p.get("location", {})
-                            lat = loc.get("latitude", 13.0827)
-                            lng = loc.get("longitude", 80.2707)
+                            lat = loc.get("latitude")
+                            lng = loc.get("longitude")
                             category = p.get("primaryTypeDisplayName", {}).get("text", query.title())
 
                             has_web = bool(web and web != "N/A" and web.startswith("http"))
                             if only_missing_website and has_web:
                                 continue
-                            if rating < min_rating:
+                            if rating is not None and rating < min_rating:
                                 continue
-
-                            email = f"contact@{name.lower().replace(' ', '').replace(',', '')[:14]}.com" if has_web else ""
 
                             item = {
                                 "search_term": search_text,
                                 "scraped_date": scraped_date,
+                                "place_id": place_id,
                                 "business_name": name,
                                 "street_address": addr,
-                                "city": location.split(",")[0].strip() if location else "Chennai",
-                                "state": location.split(",")[-1].strip() if "," in location else "TN",
-                                "zip": "600001",
-                                "phone": phone or "+91 44 2800 0000",
+                                "city": location.split(",")[0].strip() if location else "",
+                                "state": location.split(",")[-1].strip() if "," in location else "",
+                                "zip": "",
+                                "phone": phone,
                                 "website": web if has_web else "",
                                 "has_website": has_web,
-                                "email": email,
+                                "email": None,
                                 "latitude": lat,
                                 "longitude": lng,
                                 "category": category,
-                                "rating": rating,
-                                "review_count": reviews,
-                                "source_url": f"https://www.google.com/maps/search/{name.replace(' ', '+')}",
+                                "rating": rating or 0.0,
+                                "review_count": reviews or 0,
+                                "source_url": f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else "",
                                 "estimated_value": 25000.0 if not has_web else 15000.0,
+                                "provenance": "EXTERNAL_API",
+                                "verification_status": "VERIFIED",
                             }
                             harvested_items.append(item)
                             if len(harvested_items) >= target_count:
@@ -113,125 +123,40 @@ class GoogleMapsLeadHarvester:
             except Exception as e:
                 print(f"Places API harvest exception: {e}")
 
-        # 2. Local Ollama Hunter Agent Crawler (Offline AI Simulation based on real Google Maps directory format)
-        if len(harvested_items) < target_count:
-            needed = target_count - len(harvested_items)
-            prompt = f"""You are Hunter, Lead Generation Crawler Agent at CODE WIBES.
-Extract and compile {needed} realistic business listings found on Google Maps for: "{search_text}".
-Filters applied:
-- Minimum Rating: {min_rating}
-- Only Missing Website: {only_missing_website}
-
-Return ONLY a valid JSON array of objects with these exact keys:
-[
-  {{
-    "business_name": "Exact company name",
-    "street_address": "Street address and area",
-    "city": "{location.split(',')[0].strip() if location else 'Chennai'}",
-    "state": "State",
-    "zip": "Postal code",
-    "phone": "+91 or localized phone number",
-    "website": "{"" if only_missing_website else "https://example.com"}",
-    "has_website": {str(not only_missing_website).lower()},
-    "email": "owner or info email address",
-    "latitude": 13.0827,
-    "longitude": 80.2707,
-    "category": "{query.title()}",
-    "rating": 4.6,
-    "review_count": 48,
-    "estimated_value": 20000
-  }}
-]
-JSON format only. No markdown fences, no explanatory text."""
-
-            try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    resp = await client.post(
-                        OLLAMA_API,
-                        json={
-                            "model": "qwen3.5:4b",
-                            "prompt": prompt,
-                            "stream": False,
-                        },
-                    )
-                    if resp.status_code == 200:
-                        raw = resp.json().get("response", "").strip()
-                        s = raw.find("[")
-                        e = raw.rfind("]") + 1
-                        if s != -1 and e != 0:
-                            parsed = json.loads(raw[s:e])
-                            for p in parsed:
-                                has_web = p.get("has_website", bool(p.get("website")))
-                                if only_missing_website:
-                                    has_web = False
-                                    p["website"] = ""
-                                r = float(p.get("rating", 4.5))
-                                if r < min_rating:
-                                    continue
-
-                                item = {
-                                    "search_term": search_text,
-                                    "scraped_date": scraped_date,
-                                    "business_name": p.get("business_name", f"{query} Studio"),
-                                    "street_address": p.get("street_address", f"Mount Road, {location}"),
-                                    "city": p.get("city", location),
-                                    "state": p.get("state", "State"),
-                                    "zip": p.get("zip", "600002"),
-                                    "phone": p.get("phone", "+91 44 2490 0000"),
-                                    "website": p.get("website", ""),
-                                    "has_website": has_web,
-                                    "email": p.get("email", f"info@{location.lower()}lead.com"),
-                                    "latitude": float(p.get("latitude", 13.0827)),
-                                    "longitude": float(p.get("longitude", 80.2707)),
-                                    "category": p.get("category", query.title()),
-                                    "rating": r,
-                                    "review_count": int(p.get("review_count", 36)),
-                                    "source_url": f"https://www.google.com/maps/search/{p.get('business_name', 'Lead').replace(' ', '+')}",
-                                    "estimated_value": float(p.get("estimated_value", 22000.0)),
-                                }
-                                harvested_items.append(item)
-                                if len(harvested_items) >= target_count:
-                                    break
-            except Exception as e:
-                print(f"Ollama Hunter extraction error: {e}")
-
-        # Fallback guarantee
+        # Strict Data Integrity: If no official API key or no results, NEVER generate fake listings!
         if not harvested_items:
-            harvested_items.append({
-                "search_term": search_text,
-                "scraped_date": scraped_date,
-                "business_name": f"{location} {query.title()} Tech Group",
-                "street_address": f"OMR IT Corridor, {location}",
-                "city": location,
-                "state": "TN",
-                "zip": "600096",
-                "phone": "+91 44 4567 8900",
-                "website": "" if only_missing_website else f"https://{location.lower()}-it.com",
-                "has_website": not only_missing_website,
-                "email": f"contact@{location.lower()}group.com",
-                "latitude": 12.9716,
-                "longitude": 80.2435,
-                "category": query.title(),
-                "rating": 4.8,
-                "review_count": 82,
-                "source_url": f"https://www.google.com/maps/search/{location}+{query.replace(' ', '+')}",
-                "estimated_value": 30000.0,
-            })
+            # Return empty list cleanly without inserting fabricated businesses
+            return []
 
-        # Save to PostgreSQL database
+        # Save to PostgreSQL database with explicit provenance and deduplication
         saved_leads = []
         for item in harvested_items:
-            # Prepare notes with full structured JSON for export
             notes_payload = json.dumps(item)
             lead = Lead(
                 company_name=item["business_name"],
-                contact_name="Founder / Decision Maker",
-                contact_email=item["email"],
+                contact_name=None,
+                contact_email=None,
+                phone=item["phone"],
+                website=item["website"],
+                has_website=item["has_website"],
+                city=item["city"],
+                state=item["state"],
                 industry=item["category"],
                 status="new",
+                place_id=item["place_id"],
+                rating=item["rating"],
+                review_count=item["review_count"],
+                google_attribution_required=True,
+                consent_status="needs_consent",
                 estimated_value=item["estimated_value"],
-                source="Google Maps Crawler",
+                source="Google Places API (New)",
                 notes=notes_payload,
+                provenance_metadata={
+                    "source_type": "EXTERNAL_API",
+                    "source_reference": item["place_id"],
+                    "verification_status": "VERIFIED",
+                    "created_by": "HUNTER_AGENT",
+                },
             )
             self.db.add(lead)
             saved_leads.append(item)
@@ -251,7 +176,7 @@ JSON format only. No markdown fences, no explanatory text."""
                 "count": len(saved_leads),
                 "only_missing_website": only_missing_website,
                 "min_rating": min_rating,
-                "summary": f"Hunter crawled {len(saved_leads)} verified Google Maps leads for {query} in {location}",
+                "summary": f"Hunter crawled {len(saved_leads)} verified Google Places leads for {query} in {location}",
             },
         )
         self.db.add(log)

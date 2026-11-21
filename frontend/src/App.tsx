@@ -32,6 +32,10 @@ import {
   FileSpreadsheet,
   Globe,
   ExternalLink,
+  ShieldCheck,
+  Cpu,
+  Database,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   fetchOverviewStats,
@@ -46,6 +50,14 @@ import {
   exportLeadsJson,
   triggerAutonomousSprint,
   chatWithAgent,
+  fetchPendingApprovals,
+  decideApproval,
+  fetchRegisteredModels,
+  probeOllamaModels,
+  fetchCompanyMemories,
+  fetchCompanySettings,
+  emergencyPause,
+  resumeCompany,
 } from './api';
 import type {
   OverviewStats,
@@ -57,6 +69,10 @@ import type {
   ActivityItem,
   AutonomousSprintResult,
   AgentChatResponse,
+  ApprovalItem,
+  ModelItem,
+  MemoryItem,
+  CompanySettings,
 } from './api';
 
 const jsonParse = (str: string) => {
@@ -72,7 +88,7 @@ import { PublicWebsite } from './PublicWebsite';
 export function App() {
   const [viewMode, setViewMode] = useState<'dashboard' | 'public_website'>('dashboard');
   const [activeMenu, setActiveMenu] = useState<
-    'dashboard' | 'departments' | 'employees' | 'tasks' | 'communication' | 'analytics' | 'settings' | 'profile' | 'help'
+    'dashboard' | 'departments' | 'employees' | 'tasks' | 'approvals' | 'models' | 'memory' | 'communication' | 'analytics' | 'settings' | 'profile' | 'help'
   >('dashboard');
 
   const [stats, setStats] = useState<OverviewStats | null>(null);
@@ -82,6 +98,12 @@ export function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
+  const [models, setModels] = useState<ModelItem[]>([]);
+  const [memories, setMemories] = useState<MemoryItem[]>([]);
+  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
+  const [selectedMemoryTier, setSelectedMemoryTier] = useState<string>('constitution');
+  const [approvalFeedback, setApprovalFeedback] = useState<{ [id: string]: string }>({});
   const [loading, setLoading] = useState(true);
 
   // Executive AI Command Terminal state
@@ -110,7 +132,7 @@ export function App() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [sData, dData, aData, pData, tData, lData, actData] = await Promise.all([
+      const [sData, dData, aData, pData, tData, lData, actData, appData, mData, memData, cfgData] = await Promise.all([
         fetchOverviewStats(),
         fetchDepartments(),
         fetchAgents(),
@@ -118,6 +140,10 @@ export function App() {
         fetchTasks(),
         fetchLeads(),
         fetchRecentActivity(),
+        fetchPendingApprovals().catch(() => []),
+        fetchRegisteredModels().catch(() => []),
+        fetchCompanyMemories().catch(() => []),
+        fetchCompanySettings().catch(() => null),
       ]);
       setStats(sData);
       setDepartments(dData);
@@ -126,6 +152,10 @@ export function App() {
       setTasks(tData);
       setLeads(lData);
       setActivities(actData);
+      setApprovals(appData);
+      setModels(mData);
+      setMemories(memData);
+      setCompanySettings(cfgData);
     } catch (err) {
       console.error('Failed to load company data:', err);
     } finally {
@@ -306,6 +336,41 @@ export function App() {
               <div className="nav-item-left">
                 <CheckSquare size={18} className="nav-icon" color="#94a3b8" />
                 <span>Task Manager</span>
+              </div>
+            </div>
+
+            <div
+              className={`nav-item ${activeMenu === 'approvals' ? 'active' : ''}`}
+              onClick={() => setActiveMenu('approvals')}
+            >
+              <div className="nav-item-left">
+                <ShieldCheck size={18} className="nav-icon" color="#10b981" />
+                <span>Founder Approvals</span>
+              </div>
+              {approvals.length > 0 && (
+                <span style={{ background: '#ef4444', color: 'white', fontSize: '10px', fontWeight: 800, padding: '2px 7px', borderRadius: '10px' }}>
+                  {approvals.length}
+                </span>
+              )}
+            </div>
+
+            <div
+              className={`nav-item ${activeMenu === 'models' ? 'active' : ''}`}
+              onClick={() => setActiveMenu('models')}
+            >
+              <div className="nav-item-left">
+                <Cpu size={18} className="nav-icon" color="#38bdf8" />
+                <span>Model Registry</span>
+              </div>
+            </div>
+
+            <div
+              className={`nav-item ${activeMenu === 'memory' ? 'active' : ''}`}
+              onClick={() => setActiveMenu('memory')}
+            >
+              <div className="nav-item-left">
+                <Database size={18} className="nav-icon" color="#c084fc" />
+                <span>7-Tier Memory</span>
               </div>
             </div>
 
@@ -535,12 +600,37 @@ export function App() {
                 {sprintResult && (
                   <div className="sprint-output-box">
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ color: '#34d399', fontWeight: 800 }}>✓ Sprint Completed by Autonomous Agents</span>
+                      <span style={{ color: '#34d399', fontWeight: 800 }}>✓ Sprint Orchestrated by Central AI Manager NEXUS</span>
                       <span style={{ color: '#64748b', cursor: 'pointer' }} onClick={() => setSprintResult(null)}>✕ Close</span>
                     </div>
-                    <div style={{ fontSize: '13px', color: '#e2e8f0', whiteSpace: 'pre-wrap', maxHeight: '200px', overflowY: 'auto' }}>
-                      <p style={{ color: '#38bdf8', fontWeight: 700, marginBottom: '4px' }}>[CEO Nexus Plan]:</p>
-                      <p style={{ marginBottom: '10px' }}>{sprintResult.ceo_plan}</p>
+                    <div style={{ fontSize: '13px', color: '#e2e8f0', whiteSpace: 'pre-wrap', maxHeight: '320px', overflowY: 'auto' }}>
+                      <p style={{ color: '#38bdf8', fontWeight: 700, marginBottom: '4px' }}>[NEXUS Strategic Plan]:</p>
+                      <p style={{ marginBottom: '10px' }}>{sprintResult.nexus_plan || sprintResult.ceo_plan}</p>
+                      
+                      {sprintResult.tasks_executed && sprintResult.tasks_executed.length > 0 && (
+                        <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px' }}>
+                          <p style={{ color: '#c084fc', fontWeight: 700, marginBottom: '8px' }}>[Departmental Deliverables & Verification]:</p>
+                          {sprintResult.tasks_executed.map((task, idx) => (
+                            <div key={idx} style={{ background: '#050711', padding: '10px', borderRadius: '8px', marginBottom: '8px', fontSize: '12px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                <span style={{ fontWeight: 700, color: '#38bdf8' }}>{task.task_title}</span>
+                                <span style={{ color: '#34d399', fontSize: '11px', background: 'rgba(52,211,153,0.15)', padding: '2px 8px', borderRadius: '4px' }}>
+                                  ✓ {task.assigned_agent} ({task.status})
+                                </span>
+                              </div>
+                              {task.verifier_decision && (
+                                <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '6px' }}>
+                                  <strong style={{ color: '#fbbf24' }}>NEXUS Review:</strong> {task.verifier_decision}
+                                </div>
+                              )}
+                              <pre style={{ whiteSpace: 'pre-wrap', margin: 0, color: '#e2e8f0' }}>
+                                {task.output_preview}
+                              </pre>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       {sprintResult.code_generated && (
                         <>
                           <p style={{ color: '#c084fc', fontWeight: 700, marginBottom: '4px' }}>[Engineer Forge Code Generated]:</p>
@@ -1227,7 +1317,14 @@ export function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {leads.map((lead) => {
+                      {leads.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '40px 18px', textAlign: 'center', color: '#64748b' }}>
+                            <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '8px' }}>No leads discovered yet</div>
+                            <div style={{ fontSize: '12px' }}>Use the Google Maps Crawler above to discover verified business leads via official Google Places API.</div>
+                          </td>
+                        </tr>
+                      ) : leads.map((lead) => {
                         let parsedNotes: any = null;
                         if (lead.notes && lead.notes.startsWith('{')) {
                           try {
@@ -1342,6 +1439,205 @@ export function App() {
             </div>
           )}
 
+          {/* TAB: FOUNDER APPROVALS */}
+          {activeMenu === 'approvals' && (
+            <div>
+              <div style={{ marginBottom: '24px' }}>
+                <h2 style={{ fontSize: '24px', fontWeight: 800 }}>Founder Approval Queue</h2>
+                <p style={{ color: '#94a3b8', fontSize: '14px' }}>
+                  Mandatory Founder governance gate. All consequential external actions (calls, emails, proposals, deployments) require your explicit decision.
+                </p>
+              </div>
+
+              {approvals.length === 0 ? (
+                <div className="dash-panel" style={{ textAlign: 'center', padding: '48px 24px', color: '#64748b' }}>
+                  <ShieldCheck size={48} color="#10b981" style={{ margin: '0 auto 12px' }} />
+                  <h3 style={{ fontSize: '18px', color: '#f8fafc', marginBottom: '6px' }}>No Pending Approvals</h3>
+                  <p style={{ fontSize: '13px' }}>All departmental AI actions are currently within autonomous safety bounds.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: '16px' }}>
+                  {approvals.map((req) => (
+                    <div key={req.id} className="dash-panel" style={{ borderLeft: `4px solid ${req.risk_level === 'HIGH' ? '#ef4444' : '#f59e0b'}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '4px', background: req.risk_level === 'HIGH' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)', color: req.risk_level === 'HIGH' ? '#f87171' : '#fbbf24' }}>
+                              {req.risk_level} RISK
+                            </span>
+                            <span style={{ fontSize: '12px', color: '#94a3b8' }}>{req.action_type}</span>
+                          </div>
+                          <h3 style={{ fontSize: '16px', color: '#ffffff', marginTop: '6px' }}>{req.title}</h3>
+                          <p style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px' }}>{req.description}</p>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={async () => {
+                              await decideApproval(req.id, true, approvalFeedback[req.id]);
+                              loadData();
+                            }}
+                            style={{ background: '#10b981', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 700, fontSize: '12.5px', cursor: 'pointer' }}
+                          >
+                            ✓ Approve Action
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await decideApproval(req.id, false, approvalFeedback[req.id] || 'Rejected by Founder');
+                              loadData();
+                            }}
+                            style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)', padding: '8px 16px', borderRadius: '8px', fontWeight: 700, fontSize: '12.5px', cursor: 'pointer' }}
+                          >
+                            ✕ Reject
+                          </button>
+                        </div>
+                      </div>
+
+                      {req.preview_payload && Object.keys(req.preview_payload).length > 0 && (
+                        <div style={{ marginTop: '12px', background: '#050711', padding: '12px', borderRadius: '8px', fontSize: '12px' }}>
+                          <span style={{ color: '#38bdf8', fontWeight: 700 }}>Action Preview / Payload:</span>
+                          <pre style={{ margin: '6px 0 0', color: '#cbd5e1', whiteSpace: 'pre-wrap' }}>
+                            {JSON.stringify(req.preview_payload, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: '12px' }}>
+                        <input
+                          type="text"
+                          placeholder="Optional guidance / feedback to AI agent..."
+                          value={approvalFeedback[req.id] || ''}
+                          onChange={(e) => setApprovalFeedback({ ...approvalFeedback, [req.id]: e.target.value })}
+                          style={{ width: '100%', background: '#070913', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '8px 12px', color: '#ffffff', fontSize: '12px' }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: MODEL REGISTRY */}
+          {activeMenu === 'models' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <h2 style={{ fontSize: '24px', fontWeight: 800 }}>Local Model Registry (Ollama GPU)</h2>
+                  <p style={{ color: '#94a3b8', fontSize: '14px' }}>
+                    Hardware: NVIDIA RTX 4050 6GB VRAM. Enforces sequential execution (`max_concurrent_models = 1`) and 8192 token context bounds.
+                  </p>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    await probeOllamaModels();
+                    loadData();
+                  }}
+                  className="btn-hq"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}
+                >
+                  <Cpu size={16} />
+                  Probe Local Models
+                </button>
+              </div>
+
+              {models.length === 0 ? (
+                <div className="dash-panel" style={{ textAlign: 'center', padding: '48px 24px', color: '#64748b' }}>
+                  <Cpu size={48} color="#38bdf8" style={{ margin: '0 auto 12px' }} />
+                  <h3 style={{ fontSize: '18px', color: '#f8fafc', marginBottom: '6px' }}>No Models Registered</h3>
+                  <p style={{ fontSize: '13px' }}>Click 'Probe Local Models' to query your local Ollama instance on port 11434.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                  {models.map((m) => (
+                    <div key={m.name} className="dash-panel">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontWeight: 800, color: '#f8fafc', fontSize: '15px' }}>{m.name}</span>
+                        <span style={{ fontSize: '10px', color: m.status === 'ready' ? '#34d399' : '#fbbf24', background: m.status === 'ready' ? 'rgba(52,211,153,0.15)' : 'rgba(251,191,36,0.15)', padding: '2px 8px', borderRadius: '4px' }}>
+                          ● {m.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>
+                        Quant: <span style={{ color: '#ffffff' }}>{m.quantization || 'Q4_K_M'}</span> • Params: <span style={{ color: '#ffffff' }}>{m.parameter_size || 'Unknown'}</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                        Runtime Context: <span style={{ color: '#38bdf8', fontWeight: 700 }}>{m.runtime_context} tokens</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
+                        Capabilities: {m.task_categories?.join(', ') || 'General Reasoning'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: 7-TIER MEMORY EXPLORER */}
+          {activeMenu === 'memory' && (
+            <div>
+              <div style={{ marginBottom: '24px' }}>
+                <h2 style={{ fontSize: '24px', fontWeight: 800 }}>Persistent 7-Tier Company Memory</h2>
+                <p style={{ color: '#94a3b8', fontSize: '14px' }}>
+                  PostgreSQL-backed hierarchical memory across Constitution, Founder Preferences, Departments, Agents, Projects, Tasks, and Customers.
+                </p>
+              </div>
+
+              {/* Tier Filter Chips */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                {['constitution', 'founder_preference', 'department', 'agent', 'project', 'task', 'customer'].map((tier) => (
+                  <button
+                    key={tier}
+                    onClick={async () => {
+                      setSelectedMemoryTier(tier);
+                      const mems = await fetchCompanyMemories(tier);
+                      setMemories(mems);
+                    }}
+                    style={{
+                      background: selectedMemoryTier === tier ? 'rgba(192, 132, 252, 0.25)' : '#070913',
+                      border: `1px solid ${selectedMemoryTier === tier ? '#c084fc' : 'rgba(255,255,255,0.1)'}`,
+                      color: selectedMemoryTier === tier ? '#c084fc' : '#94a3b8',
+                      borderRadius: '8px',
+                      padding: '6px 14px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {tier.toUpperCase().replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+
+              {memories.length === 0 ? (
+                <div className="dash-panel" style={{ textAlign: 'center', padding: '48px 24px', color: '#64748b' }}>
+                  <Database size={48} color="#c084fc" style={{ margin: '0 auto 12px' }} />
+                  <h3 style={{ fontSize: '18px', color: '#f8fafc', marginBottom: '6px' }}>No Memories in {selectedMemoryTier.toUpperCase()}</h3>
+                  <p style={{ fontSize: '13px' }}>Memories in this tier will be persisted automatically as agents plan and complete tasks.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: '12px' }}>
+                  {memories.map((mem) => (
+                    <div key={mem.id} className="dash-panel">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ color: '#c084fc', fontWeight: 700, fontSize: '13px' }}>
+                          [{mem.tier.toUpperCase()}] {mem.namespace} :: {mem.key}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                          Provenance: {mem.provenance || 'SYSTEM'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>
+                        {mem.content}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB: COMMUNICATION */}
           {activeMenu === 'communication' && (
             <div>
@@ -1403,6 +1699,46 @@ export function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#94a3b8' }}>Database:</span>
                   <span style={{ fontWeight: 700, color: '#ffffff' }}>PostgreSQL 19 (`code_wibes`)</span>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '16px', marginTop: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ color: '#ffffff', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AlertTriangle size={16} color={companySettings?.emergency_pause_all_agents ? '#ef4444' : '#f59e0b'} />
+                        Global Safety Kill-Switch
+                      </div>
+                      <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '2px' }}>
+                        {companySettings?.emergency_pause_all_agents
+                          ? '⚠️ Company operations are HALTED. All agent tasks blocked.'
+                          : 'Operational: Consequential external actions guarded by Founder Approval.'}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={async () => {
+                        if (companySettings?.emergency_pause_all_agents) {
+                          await resumeCompany();
+                        } else {
+                          await emergencyPause();
+                        }
+                        loadData();
+                      }}
+                      style={{
+                        background: companySettings?.emergency_pause_all_agents ? '#10b981' : '#ef4444',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 18px',
+                        borderRadius: '8px',
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        boxShadow: companySettings?.emergency_pause_all_agents ? '0 0 12px rgba(16,185,129,0.3)' : '0 0 12px rgba(239,68,68,0.3)',
+                      }}
+                    >
+                      {companySettings?.emergency_pause_all_agents ? 'Resume All Operations' : 'Emergency Stop (Kill-Switch)'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

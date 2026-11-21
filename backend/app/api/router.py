@@ -15,6 +15,7 @@ from app.api.approvals import router as approvals_router
 from app.api.voice import router as voice_router
 from app.api.proposals import router as proposals_router
 from app.api.change_requests import router as change_requests_router
+from app.api.nexus import router as nexus_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -32,3 +33,4 @@ api_v1_router.include_router(approvals_router)
 api_v1_router.include_router(voice_router)
 api_v1_router.include_router(proposals_router)
 api_v1_router.include_router(change_requests_router)
+api_v1_router.include_router(nexus_router)

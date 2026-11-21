@@ -94,9 +94,19 @@ export interface OwnerCommandResponse {
 export interface AutonomousSprintResult {
   objective: string;
   project_id: string;
-  ceo_plan: string;
-  code_generated: string;
-  lead_acquired: string;
+  ceo_plan?: string;
+  nexus_plan?: string;
+  code_generated?: string;
+  lead_acquired?: string;
+  tasks_executed?: Array<{
+    task_id: string;
+    task_title: string;
+    status: string;
+    assigned_agent: string;
+    attempts: number;
+    output_preview: string;
+    verifier_decision?: string;
+  }>;
   status: string;
 }
 
@@ -277,10 +287,14 @@ export const triggerEmergencyPause = async (): Promise<any> => {
   return res.data;
 };
 
+export const emergencyPause = triggerEmergencyPause;
+
 export const triggerResumeOperations = async (): Promise<any> => {
   const res = await apiClient.post('/settings/resume');
   return res.data;
 };
+
+export const resumeCompany = triggerResumeOperations;
 
 export const fetchOrgChart = async (): Promise<OrgChartData> => {
   const res = await apiClient.get<OrgChartData>('/agents/org-chart');
