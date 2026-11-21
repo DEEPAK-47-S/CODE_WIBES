@@ -600,6 +600,130 @@ export const runCompanyAutopilot = async (
   return res.data;
 };
 
+export interface ExecutiveBriefing {
+  date: string;
+  executive_summary: string;
+  financials: {
+    total_invoiced_inr: number;
+    total_collected_inr: number;
+    pending_collection_inr: number;
+    invoices_count: number;
+    active_msa_contracts: number;
+    signed_msa_contracts: number;
+  };
+  pipeline: {
+    total_leads: number;
+    new_leads: number;
+    contacted_leads: number;
+    converted_leads: number;
+  };
+  production: {
+    total_projects: number;
+    total_tasks: number;
+    active_tasks: number;
+  };
+  governance: {
+    pending_founder_approvals_count: number;
+    pending_actions: Array<{ id: string; action_type: string; created_at: string | null }>;
+  };
+  strategic_priorities: string[];
+  generated_by: {
+    agent: string;
+    role: string;
+    department: string;
+  };
+}
+
+export const fetchExecutiveBriefing = async (): Promise<ExecutiveBriefing> => {
+  const res = await apiClient.get<ExecutiveBriefing>('/nexus/briefing');
+  return res.data;
+};
+
+export interface QAAuditReport {
+  project_id: string;
+  status: string;
+  overall_score: number;
+  security_score: number;
+  quality_score: number;
+  certification: string;
+  files_scanned_count: number;
+  files_scanned: string[];
+  total_lines_of_code: number;
+  owasp_top_10_compliant: boolean;
+  findings_count: number;
+  findings: Array<{ severity: string; category: string; file: string; description: string }>;
+  audited_by_departments: Array<{ department: string; name: string; agent: string }>;
+  recommendations: string[];
+}
+
+export const fetchProjectQAAudit = async (projectId: string): Promise<QAAuditReport> => {
+  const res = await apiClient.get<QAAuditReport>(`/factory/audit/${projectId}`);
+  return res.data;
+};
+
+export const runProjectQAAudit = async (projectId: string): Promise<QAAuditReport> => {
+  const res = await apiClient.post<QAAuditReport>(`/factory/audit/${projectId}`);
+  return res.data;
+};
+
+export interface ClientPortalData {
+  project: {
+    id: string;
+    name: string;
+    description: string;
+    status: string;
+    created_at: string;
+    staging_url: string;
+    download_zip_url: string;
+  };
+  qa_certification: {
+    certification: string;
+    overall_score: number;
+    owasp_compliant: boolean;
+    findings_count: number;
+  };
+  invoices: Array<{
+    id: string;
+    invoice_number: string;
+    total_amount: number;
+    status: string;
+    due_date: string;
+    payment_link: string;
+    print_url: string;
+  }>;
+  contracts: Array<{
+    id: string;
+    contract_number: string;
+    title: string;
+    total_value_inr: number;
+    status: string;
+    founder_signed: boolean;
+    print_url: string;
+  }>;
+  change_requests: Array<{
+    id: string;
+    title: string;
+    description: string;
+    status: string;
+    priority: string;
+    estimated_hours: number;
+    created_at: string;
+  }>;
+}
+
+export const fetchClientPortalData = async (projectId: string): Promise<ClientPortalData> => {
+  const res = await apiClient.get<ClientPortalData>(`/client-portal/${projectId}`);
+  return res.data;
+};
+
+export const submitClientChangeRequest = async (
+  projectId: string,
+  data: { title: string; description: string; priority?: string }
+): Promise<any> => {
+  const res = await apiClient.post(`/client-portal/${projectId}/change-request`, data);
+  return res.data;
+};
+
 
 
 

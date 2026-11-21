@@ -3,6 +3,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -145,5 +146,29 @@ async def sign_contract_by_founder(contract_id: str, db: AsyncSession = Depends(
     try:
         c_uuid = uuid.UUID(contract_id)
         return await service.founder_sign_contract(c_uuid)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/invoices/{invoice_id}/print", response_class=HTMLResponse)
+async def print_invoice_html(invoice_id: str, db: AsyncSession = Depends(get_db)):
+    """Renders government-compliant GST tax invoice print layout."""
+    service = BillingContractService(db)
+    try:
+        inv_uuid = uuid.UUID(invoice_id)
+        html = await service.generate_printable_invoice_html(inv_uuid)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/contracts/{contract_id}/print", response_class=HTMLResponse)
+async def print_contract_html(contract_id: str, db: AsyncSession = Depends(get_db)):
+    """Renders legally-formatted Master Service Agreement (MSA) print layout."""
+    service = BillingContractService(db)
+    try:
+        c_uuid = uuid.UUID(contract_id)
+        html = await service.generate_printable_contract_html(c_uuid)
+        return HTMLResponse(content=html)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

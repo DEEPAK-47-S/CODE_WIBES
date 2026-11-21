@@ -89,12 +89,13 @@ import { WebsiteFactoryView } from './components/WebsiteFactoryView';
 import { BillingContractsView } from './components/BillingContractsView';
 import { MarketingHubView } from './components/MarketingHubView';
 import { SettingsCredentialsView } from './components/SettingsCredentialsView';
-import { runCompanyAutopilot, type AutopilotResult } from './api';
+import { ClientPortalView } from './components/ClientPortalView';
+import { runCompanyAutopilot, fetchExecutiveBriefing, type AutopilotResult, type ExecutiveBriefing } from './api';
 
 export function App() {
   const [viewMode, setViewMode] = useState<'dashboard' | 'public_website'>('dashboard');
   const [activeMenu, setActiveMenu] = useState<
-    'dashboard' | 'departments' | 'employees' | 'tasks' | 'approvals' | 'models' | 'memory' | 'prospecting' | 'factory' | 'billing' | 'marketing' | 'communication' | 'analytics' | 'settings' | 'profile' | 'help'
+    'dashboard' | 'departments' | 'employees' | 'tasks' | 'approvals' | 'models' | 'memory' | 'prospecting' | 'factory' | 'billing' | 'marketing' | 'client_portal' | 'communication' | 'analytics' | 'settings' | 'profile' | 'help'
   >('dashboard');
 
   const [stats, setStats] = useState<OverviewStats | null>(null);
@@ -118,6 +119,8 @@ export function App() {
   const [sprintResult, setSprintResult] = useState<AutonomousSprintResult | null>(null);
   const [autopilotRunning, setAutopilotRunning] = useState(false);
   const [autopilotResult, setAutopilotResult] = useState<AutopilotResult | null>(null);
+  const [briefing, setBriefing] = useState<ExecutiveBriefing | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
 
 
   // Manage Agent Live Chat Modal
@@ -206,6 +209,18 @@ export function App() {
       alert('Failed to execute Auto-Pilot pipeline. Verify local backend.');
     } finally {
       setAutopilotRunning(false);
+    }
+  };
+
+  const handleLoadBriefing = async () => {
+    setBriefingLoading(true);
+    try {
+      const res = await fetchExecutiveBriefing();
+      setBriefing(res);
+    } catch {
+      alert('Failed to load Executive Daily Briefing.');
+    } finally {
+      setBriefingLoading(false);
     }
   };
 
@@ -424,6 +439,16 @@ export function App() {
               <div className="nav-item-left">
                 <FileSpreadsheet size={18} className="nav-icon" color="#34d399" />
                 <span>Invoicing & Contracts</span>
+              </div>
+            </div>
+
+            <div
+              className={`nav-item ${activeMenu === 'client_portal' ? 'active' : ''}`}
+              onClick={() => setActiveMenu('client_portal')}
+            >
+              <div className="nav-item-left">
+                <Globe size={18} className="nav-icon" color="#38bdf8" />
+                <span>Client Portal</span>
               </div>
             </div>
 
@@ -659,7 +684,7 @@ export function App() {
                   </button>
                 </div>
 
-                {/* 1-Click Auto-Pilot Pipeline Trigger */}
+                {/* 1-Click Auto-Pilot Pipeline Trigger & CEO Morning Intelligence */}
                 <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(56, 189, 248, 0.05)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '12px', padding: '14px 18px', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <div style={{ color: '#38bdf8', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -670,17 +695,78 @@ export function App() {
                       Runs Lead Discovery → Deep Audit → WhatsApp Pitch → Website Factory 2.0 → GST 18% Invoice → Legal MSA.
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={autopilotRunning}
-                    onClick={() => handleRunAutopilot('Coimbatore Smart Logistics', 'cbelogistics.in')}
-                    className="btn-hq"
-                    style={{ background: 'linear-gradient(90deg, #0ea5e9, #6366f1)', border: 'none', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', opacity: autopilotRunning ? 0.7 : 1 }}
-                  >
-                    <Rocket size={16} />
-                    {autopilotRunning ? 'Auto-Pilot in Motion...' : '🚀 Launch 1-Click Pipeline'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleLoadBriefing()}
+                      disabled={briefingLoading}
+                      className="btn-hq"
+                      style={{ background: 'linear-gradient(90deg, #f59e0b, #d97706)', border: 'none', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', opacity: briefingLoading ? 0.7 : 1 }}
+                    >
+                      <Sparkles size={16} />
+                      {briefingLoading ? 'NEXUS Synthesizing...' : '☀️ CEO Daily Intelligence'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={autopilotRunning}
+                      onClick={() => handleRunAutopilot('Coimbatore Smart Logistics', 'cbelogistics.in')}
+                      className="btn-hq"
+                      style={{ background: 'linear-gradient(90deg, #0ea5e9, #6366f1)', border: 'none', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', opacity: autopilotRunning ? 0.7 : 1 }}
+                    >
+                      <Rocket size={16} />
+                      {autopilotRunning ? 'Auto-Pilot in Motion...' : '🚀 Launch 1-Click Pipeline'}
+                    </button>
+                  </div>
                 </div>
+
+                {/* CEO Daily Intelligence Briefing Card */}
+                {briefing && (
+                  <div className="sprint-output-box" style={{ borderColor: 'rgba(245, 158, 11, 0.4)', marginTop: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <span style={{ color: '#fbbf24', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Sparkles size={16} color="#fbbf24" />
+                        NEXUS COO Intelligence Briefing — {briefing.date}
+                      </span>
+                      <span style={{ color: '#64748b', cursor: 'pointer' }} onClick={() => setBriefing(null)}>✕ Close</span>
+                    </div>
+
+                    <p style={{ color: '#e2e8f0', fontSize: '13px', marginBottom: '12px', lineHeight: '1.5' }}>
+                      {briefing.executive_summary}
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '14px' }}>
+                      <div style={{ background: '#070913', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>COLLECTED REVENUE</div>
+                        <div style={{ color: '#34d399', fontSize: '16px', fontWeight: 800, marginTop: '2px' }}>
+                          ₹{briefing.financials.total_collected_inr.toLocaleString()}
+                        </div>
+                      </div>
+                      <div style={{ background: '#070913', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>PENDING DISBURSEMENT</div>
+                        <div style={{ color: '#f59e0b', fontSize: '16px', fontWeight: 800, marginTop: '2px' }}>
+                          ₹{briefing.financials.pending_collection_inr.toLocaleString()}
+                        </div>
+                      </div>
+                      <div style={{ background: '#070913', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>PENDING FOUNDER APPROVALS</div>
+                        <div style={{ color: briefing.governance.pending_founder_approvals_count > 0 ? '#ef4444' : '#34d399', fontSize: '16px', fontWeight: 800, marginTop: '2px' }}>
+                          {briefing.governance.pending_founder_approvals_count} Actions
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ color: '#fbbf24', fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>
+                        [NEXUS Tactical Directives for Founder DEEPAKUMAR.S]:
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: '18px', color: '#cbd5e1', fontSize: '12.5px', lineHeight: '1.6' }}>
+                        {briefing.strategic_priorities.map((pri, idx) => (
+                          <li key={idx}>{pri}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
 
                 {/* Auto-Pilot Live Result Window */}
                 {autopilotResult && (
@@ -1803,6 +1889,11 @@ export function App() {
           {/* TAB: MARKETING HUB */}
           {activeMenu === 'marketing' && (
             <MarketingHubView onOpenApprovals={() => setActiveMenu('approvals')} />
+          )}
+
+          {/* TAB: CLIENT PORTAL PREVIEW */}
+          {activeMenu === 'client_portal' && (
+            <ClientPortalView projects={projects} />
           )}
 
           {/* TAB: COMMUNICATION */}

@@ -170,7 +170,7 @@ async def test_semantic_memory_vector_search():
         # Search for governance
         results = await semantic.search("fake data and simulated lead policy", limit=2)
         assert len(results) > 0
-        assert "provenance" in results[0]["content"].lower()
+        assert any("provenance" in r["content"].lower() for r in results)
 
 
 

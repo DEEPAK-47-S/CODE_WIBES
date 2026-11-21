@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.session import get_db
 from app.services.website_factory_service import WebsiteFactoryService
+from app.services.quality_security_service import QualitySecurityService
 
 router = APIRouter(prefix="/factory", tags=["factory"])
 
@@ -61,5 +62,27 @@ async def export_workspace_zip(project_id: str, db: AsyncSession = Depends(get_d
             filename=zip_path.name,
             media_type="application/zip",
         )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/audit/{project_id}")
+async def get_project_qa_audit(project_id: str, db: AsyncSession = Depends(get_db)):
+    """Retrieves or executes QA & Security certification audit (D04 QA & D10 CyberSecurity)."""
+    service = QualitySecurityService(db)
+    try:
+        p_uuid = uuid.UUID(project_id)
+        return await service.get_audit_report(p_uuid)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/audit/{project_id}")
+async def run_project_qa_audit(project_id: str, db: AsyncSession = Depends(get_db)):
+    """Forces a fresh QA & Security audit across all workspace files."""
+    service = QualitySecurityService(db)
+    try:
+        p_uuid = uuid.UUID(project_id)
+        return await service.audit_project_workspace(p_uuid)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

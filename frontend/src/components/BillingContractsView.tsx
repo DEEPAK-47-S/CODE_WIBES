@@ -176,6 +176,14 @@ export function BillingContractsView({ projects }: { projects: Project[] }) {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <a
+                        href={`http://127.0.0.1:8000/api/v1/billing/invoices/${inv.id}/print`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: '#34d399', fontSize: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(52, 211, 153, 0.1)', padding: '5px 10px', borderRadius: '6px', border: '1px solid rgba(52, 211, 153, 0.25)' }}
+                      >
+                        🖨️ Print GST Invoice
+                      </a>
                       {inv.payment_link && (
                         <a
                           href={inv.payment_link}
@@ -227,16 +235,24 @@ export function BillingContractsView({ projects }: { projects: Project[] }) {
                   <pre style={{ background: '#090d16', padding: '12px', borderRadius: '6px', color: '#94a3b8', fontSize: '11px', maxHeight: '120px', overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
                     {c.terms_text}
                   </pre>
-                  {c.status !== 'founder_approved' && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+                    <a
+                      href={`http://127.0.0.1:8000/api/v1/billing/contracts/${c.id}/print`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: '#a78bfa', fontSize: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(167, 139, 250, 0.1)', padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(167, 139, 250, 0.25)' }}
+                    >
+                      🖨️ Print Agreement
+                    </a>
+                    {c.status !== 'founder_approved' && (
                       <button
                         onClick={() => handleSignContract(c.id)}
                         style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 14px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
                       >
                         Founder Digital Sign-Off (DEEPAKUMAR.S)
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

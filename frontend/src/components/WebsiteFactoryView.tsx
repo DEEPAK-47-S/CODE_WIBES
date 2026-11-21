@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Code, Download, ExternalLink, Play, CheckCircle2, Layers } from 'lucide-react';
-import { generateFactoryCodebase, type Project } from '../api';
+import { Code, Download, ExternalLink, Play, CheckCircle2, Layers, ShieldCheck } from 'lucide-react';
+import { generateFactoryCodebase, runProjectQAAudit, type Project, type QAAuditReport } from '../api';
 
 export function WebsiteFactoryView({ projects }: { projects: Project[] }) {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || '');
@@ -9,11 +9,15 @@ export function WebsiteFactoryView({ projects }: { projects: Project[] }) {
   const [generating, setGenerating] = useState<boolean>(false);
   const [stagingUrl, setStagingUrl] = useState<string | null>(null);
   const [filesGenerated, setFilesGenerated] = useState<string[]>([]);
+  const [qaReport, setQaReport] = useState<QAAuditReport | null>(null);
+  const [auditing, setAuditing] = useState<boolean>(false);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     const projId = selectedProjectId || crypto.randomUUID();
+    setSelectedProjectId(projId);
     setGenerating(true);
+    setQaReport(null);
     try {
       const res = await generateFactoryCodebase(
         projId,
@@ -24,10 +28,27 @@ export function WebsiteFactoryView({ projects }: { projects: Project[] }) {
       );
       setStagingUrl(res.staging_preview_url);
       setFilesGenerated(res.files_generated || []);
+
+      // Automatically trigger D04 QA & D10 CyberSecurity audit
+      const auditRes = await runProjectQAAudit(projId);
+      setQaReport(auditRes);
     } catch {
       alert('Failed to generate codebase. Please verify backend service.');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleRunManualAudit = async () => {
+    if (!selectedProjectId) return;
+    setAuditing(true);
+    try {
+      const auditRes = await runProjectQAAudit(selectedProjectId);
+      setQaReport(auditRes);
+    } catch {
+      alert('Failed to run QA/Security audit.');
+    } finally {
+      setAuditing(false);
     }
   };
 
@@ -129,6 +150,45 @@ export function WebsiteFactoryView({ projects }: { projects: Project[] }) {
             >
               <Download size={14} /> Download ZIP Package
             </a>
+
+            {/* QA & Security Audit Card */}
+            <div style={{ marginTop: '8px', borderTop: '1px solid #334155', paddingTop: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ShieldCheck size={15} color="#34d399" /> QA & Security
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRunManualAudit}
+                  disabled={auditing}
+                  style={{ background: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: '11px', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}
+                >
+                  {auditing ? 'Scanning...' : 'Rescan'}
+                </button>
+              </div>
+
+              {qaReport && (
+                <div style={{ background: '#090d16', borderRadius: '8px', padding: '10px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#94a3b8' }}>Certification:</span>
+                    <span style={{ color: '#34d399', fontWeight: 700 }}>{qaReport.certification}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#94a3b8' }}>Overall Score:</span>
+                    <span style={{ color: '#38bdf8', fontWeight: 700 }}>{qaReport.overall_score}/100</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#94a3b8' }}>OWASP Top 10:</span>
+                    <span style={{ color: qaReport.owasp_top_10_compliant ? '#4ade80' : '#f87171' }}>
+                      {qaReport.owasp_top_10_compliant ? '✓ Compliant' : 'Review Required'}
+                    </span>
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>
+                    Certified by TestMaster (D04 QA) & Sentinel (D10 Security)
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Right: Live Staging Preview Iframe */}

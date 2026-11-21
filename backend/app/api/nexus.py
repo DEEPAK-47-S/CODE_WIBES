@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.session import get_db
 from app.services.nexus_manager import NexusManagerService
 from app.services.autopilot_service import AutopilotService
+from app.services.executive_briefing_service import ExecutiveBriefingService
 
 router = APIRouter(prefix="/nexus", tags=["nexus"])
 
@@ -83,5 +84,15 @@ async def run_full_company_autopilot(req: AutopilotRequest, db: AsyncSession = D
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/briefing")
+async def get_executive_daily_briefing(db: AsyncSession = Depends(get_db)):
+    """NEXUS COO daily intelligence briefing: pipeline, revenue, tasks, and strategic priorities."""
+    briefing_service = ExecutiveBriefingService(db)
+    try:
+        return await briefing_service.generate_daily_briefing()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
