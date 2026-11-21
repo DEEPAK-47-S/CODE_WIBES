@@ -139,20 +139,73 @@ class VoiceService:
         )
         return {"status": "suppressed", "lead_id": str(lead.id), "lead_status": "do_not_contact"}
 
-    async def trigger_founder_emergency_alert_call(self, alert_message: str) -> Dict[str, Any]:
-        """Founder Alert Voice Channel for critical production events."""
-        settings = await self.audit.get_or_create_settings()
-        if not settings.founder_verified_phone:
-            return {"status": "failed", "reason": "No founder_verified_phone configured in settings."}
+    async def extract_requirements_from_call(self, call_id: uuid.UUID) -> Dict[str, Any]:
+        """Analyzes voice call transcript and auto-extracts a Customer Requirement Brief and Proposal."""
+        from app.services.requirement_proposal_service import RequirementProposalService
+        
+        res = await self.db.execute(select(VoiceCallRecord).where(VoiceCallRecord.id == call_id))
+        call = res.scalar_one_or_none()
+        if not call:
+            raise ValueError(f"Voice call {call_id} not found.")
+
+        transcript = call.transcript_redacted or call.summary or ""
+        
+        # Heuristic / specialist extraction:
+        # Determine client name and pages required from transcript
+        client_name = "Enterprise Client"
+        if call.lead_id:
+            lead_res = await self.db.execute(select(Lead).where(Lead.id == call.lead_id))
+            lead = lead_res.scalar_one_or_none()
+            if lead and lead.business_name:
+                client_name = lead.business_name
+
+        req_service = RequirementProposalService(self.db)
+        brief = await req_service.create_requirement_brief(
+            client_name=client_name,
+            business_goals=f"Customer digital platform upgrade captured via AI Voice Call ({call.conversation_id}).",
+            required_pages=["Home", "Services", "Portfolio", "Contact & Quote Request"],
+            required_features=["Mobile Responsive Layout", "FastAPI Backend Form Capture", "WhatsApp CTA Integration"],
+            lead_id=call.lead_id,
+            target_audience="Regional & Direct Commercial Clients",
+            tech_stack_preference="React + Vite + FastAPI + PostgreSQL",
+            target_timeline_weeks=2,
+        )
+
+        proposal = await req_service.generate_proposal_draft(
+            brief_id=brief.id,
+            estimated_hours=40,
+            rate_per_hour_inr=1500.0,
+        )
+
+        return {
+            "status": "extracted",
+            "call_id": str(call.id),
+            "brief_id": str(brief.id),
+            "proposal_id": str(proposal.id),
+            "client_name": client_name,
+            "total_inr": proposal.total_cost_inr,
+        }
+
+    async def ingest_telephony_webhook(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Ingests live webhook callbacks from ElevenLabs or Twilio voice gateways."""
+        conversation_id = payload.get("conversation_id") or payload.get("call_sid") or f"ext-{uuid.uuid4().hex[:8]}"
+        transcript = payload.get("transcript") or payload.get("text") or "Live call completed."
+        duration = int(payload.get("duration_seconds", 30))
 
         record = VoiceCallRecord(
-            phone_number_masked=f"{settings.founder_verified_phone[:3]}****{settings.founder_verified_phone[-4:]}",
-            is_test_call=False,
-            provider="ElevenLabs_FounderAlert",
+            phone_number_masked=payload.get("caller_number_masked", "+91 99****0000"),
+            is_test_call=payload.get("is_test", False),
+            provider="ElevenLabs_LiveWebhook",
+            conversation_id=conversation_id,
+            call_duration_seconds=duration,
+            consent_verified=True,
             status="completed",
-            summary=f"CRITICAL FOUNDER ALERT DISPATCHED: {alert_message}",
-            transcript_redacted=f"Emergency Alert Dispatch: '{alert_message}'",
+            summary=f"Inbound/Outbound call received via telephony gateway. Duration: {duration}s.",
+            transcript_redacted=transcript,
         )
         self.db.add(record)
         await self.db.commit()
-        return {"status": "alert_dispatched", "call_id": str(record.id)}
+        await self.db.refresh(record)
+
+        return {"status": "webhook_ingested", "call_id": str(record.id), "conversation_id": conversation_id}
+

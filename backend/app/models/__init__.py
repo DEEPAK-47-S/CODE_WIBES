@@ -13,6 +13,11 @@ from app.models.approval import ApprovalRequest, TaskDependency
 from app.models.voice_call import VoiceCallRecord
 from app.models.proposal import CustomerRequirementBrief, ProposalDraft
 from app.models.change_request import ChangeRequest
+from app.models.invoice import Invoice
+from app.models.contract import Contract
+from app.models.marketing_post import MarketingPost
+from app.models.prospect_audit import ProspectAudit
+from app.models.memory_embedding import MemoryEmbedding
 
 __all__ = [
     "User",
@@ -32,4 +37,9 @@ __all__ = [
     "CustomerRequirementBrief",
     "ProposalDraft",
     "ChangeRequest",
+    "Invoice",
+    "Contract",
+    "MarketingPost",
+    "ProspectAudit",
+    "MemoryEmbedding",
 ]

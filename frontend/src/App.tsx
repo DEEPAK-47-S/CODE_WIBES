@@ -84,11 +84,15 @@ const jsonParse = (str: string) => {
 };
 
 import { PublicWebsite } from './PublicWebsite';
+import { ProspectingView } from './components/ProspectingView';
+import { WebsiteFactoryView } from './components/WebsiteFactoryView';
+import { BillingContractsView } from './components/BillingContractsView';
+import { MarketingHubView } from './components/MarketingHubView';
 
 export function App() {
   const [viewMode, setViewMode] = useState<'dashboard' | 'public_website'>('dashboard');
   const [activeMenu, setActiveMenu] = useState<
-    'dashboard' | 'departments' | 'employees' | 'tasks' | 'approvals' | 'models' | 'memory' | 'communication' | 'analytics' | 'settings' | 'profile' | 'help'
+    'dashboard' | 'departments' | 'employees' | 'tasks' | 'approvals' | 'models' | 'memory' | 'prospecting' | 'factory' | 'billing' | 'marketing' | 'communication' | 'analytics' | 'settings' | 'profile' | 'help'
   >('dashboard');
 
   const [stats, setStats] = useState<OverviewStats | null>(null);
@@ -371,6 +375,46 @@ export function App() {
               <div className="nav-item-left">
                 <Database size={18} className="nav-icon" color="#c084fc" />
                 <span>7-Tier Memory</span>
+              </div>
+            </div>
+
+            <div
+              className={`nav-item ${activeMenu === 'prospecting' ? 'active' : ''}`}
+              onClick={() => setActiveMenu('prospecting')}
+            >
+              <div className="nav-item-left">
+                <Search size={18} className="nav-icon" color="#38bdf8" />
+                <span>Audit & Prospecting</span>
+              </div>
+            </div>
+
+            <div
+              className={`nav-item ${activeMenu === 'factory' ? 'active' : ''}`}
+              onClick={() => setActiveMenu('factory')}
+            >
+              <div className="nav-item-left">
+                <Rocket size={18} className="nav-icon" color="#60a5fa" />
+                <span>Website Factory 2.0</span>
+              </div>
+            </div>
+
+            <div
+              className={`nav-item ${activeMenu === 'billing' ? 'active' : ''}`}
+              onClick={() => setActiveMenu('billing')}
+            >
+              <div className="nav-item-left">
+                <FileSpreadsheet size={18} className="nav-icon" color="#34d399" />
+                <span>Invoicing & Contracts</span>
+              </div>
+            </div>
+
+            <div
+              className={`nav-item ${activeMenu === 'marketing' ? 'active' : ''}`}
+              onClick={() => setActiveMenu('marketing')}
+            >
+              <div className="nav-item-left">
+                <Megaphone size={18} className="nav-icon" color="#f472b6" />
+                <span>Marketing Hub</span>
               </div>
             </div>
 
@@ -1636,6 +1680,26 @@ export function App() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* TAB: AUDIT & PROSPECTING */}
+          {activeMenu === 'prospecting' && (
+            <ProspectingView onOpenApprovals={() => setActiveMenu('approvals')} />
+          )}
+
+          {/* TAB: WEBSITE FACTORY 2.0 */}
+          {activeMenu === 'factory' && (
+            <WebsiteFactoryView projects={projects} />
+          )}
+
+          {/* TAB: BILLING & CONTRACTS */}
+          {activeMenu === 'billing' && (
+            <BillingContractsView projects={projects} />
+          )}
+
+          {/* TAB: MARKETING HUB */}
+          {activeMenu === 'marketing' && (
+            <MarketingHubView onOpenApprovals={() => setActiveMenu('approvals')} />
           )}
 
           {/* TAB: COMMUNICATION */}

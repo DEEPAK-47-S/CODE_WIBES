@@ -436,4 +436,137 @@ export const createWorkspace = async (projectId: string, projectName: string, te
   return res.data;
 };
 
+// Powerhouse Interfaces & Functions
+export interface ProspectAuditResult {
+  id: string;
+  target_url: string;
+  business_name: string;
+  overall_score: number;
+  performance_score: number;
+  seo_score: number;
+  mobile_friendly: boolean;
+  ssl_active: boolean;
+  issues_found: Array<{ severity: string; issue: string }>;
+  proposed_solutions: Array<{ category: string; solution: string }>;
+  report_html: string;
+}
+
+export const auditProspectWebsite = async (target_url: string, business_name: string): Promise<ProspectAuditResult> => {
+  const res = await apiClient.post<ProspectAuditResult>('/prospecting/audit', { target_url, business_name });
+  return res.data;
+};
+
+export const draftOutreachPitch = async (audit_id: string): Promise<any> => {
+  const res = await apiClient.post('/prospecting/outreach/draft', { audit_id });
+  return res.data;
+};
+
+export const generateFactoryCodebase = async (
+  project_id: string,
+  project_name: string,
+  tech_stack: string = 'React + Tailwind + FastAPI',
+  pages?: string[],
+  features?: string[]
+): Promise<any> => {
+  const res = await apiClient.post('/factory/generate', {
+    project_id,
+    project_name,
+    tech_stack,
+    pages,
+    features,
+  });
+  return res.data;
+};
+
+export interface InvoiceItem {
+  id: string;
+  invoice_number: string;
+  client_name: string;
+  total_amount: number;
+  subtotal: number;
+  gst_amount: number;
+  status: string;
+  payment_link: string | null;
+  due_date: string | null;
+  paid_at: string | null;
+  created_at: string;
+}
+
+export const fetchInvoices = async (): Promise<InvoiceItem[]> => {
+  const res = await apiClient.get<InvoiceItem[]>('/billing/invoices');
+  return res.data;
+};
+
+export const createInvoice = async (data: any): Promise<any> => {
+  const res = await apiClient.post('/billing/invoices', data);
+  return res.data;
+};
+
+export const payInvoice = async (invoice_id: string, payment_reference_id?: string): Promise<any> => {
+  const res = await apiClient.post(`/billing/invoices/${invoice_id}/pay`, {
+    payment_reference_id: payment_reference_id || 'PAY-DIRECT-ONLINE',
+  });
+  return res.data;
+};
+
+export interface ContractItem {
+  id: string;
+  contract_number: string;
+  client_name: string;
+  title: string;
+  total_value_inr: number;
+  status: string;
+  terms_text: string;
+  founder_signed_at: string | null;
+  created_at: string;
+}
+
+export const fetchContracts = async (): Promise<ContractItem[]> => {
+  const res = await apiClient.get<ContractItem[]>('/billing/contracts');
+  return res.data;
+};
+
+export const createContract = async (data: any): Promise<any> => {
+  const res = await apiClient.post('/billing/contracts', data);
+  return res.data;
+};
+
+export const founderSignContract = async (contract_id: string): Promise<any> => {
+  const res = await apiClient.post(`/billing/contracts/${contract_id}/sign`);
+  return res.data;
+};
+
+export interface MarketingPostItem {
+  id: string;
+  platform: string;
+  title: string;
+  content_text: string;
+  hashtags: string[];
+  status: string;
+  created_by_agent: string;
+  published_at: string | null;
+  created_at: string;
+}
+
+export const fetchMarketingPosts = async (platform?: string, status?: string): Promise<MarketingPostItem[]> => {
+  const res = await apiClient.get<MarketingPostItem[]>('/marketing/posts', { params: { platform, status } });
+  return res.data;
+};
+
+export const generateMarketingPost = async (platform: string, topic: string, key_insight?: string): Promise<any> => {
+  const res = await apiClient.post('/marketing/posts/generate', { platform, topic, key_insight });
+  return res.data;
+};
+
+export const publishMarketingPost = async (post_id: string): Promise<any> => {
+  const res = await apiClient.post(`/marketing/posts/${post_id}/publish`);
+  return res.data;
+};
+
+export const semanticSearchMemories = async (q: string): Promise<any[]> => {
+  const res = await apiClient.get<any[]>('/memory/semantic-search', { params: { q } });
+  return res.data;
+};
+
+
 

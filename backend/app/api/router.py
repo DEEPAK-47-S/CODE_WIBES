@@ -16,6 +16,10 @@ from app.api.voice import router as voice_router
 from app.api.proposals import router as proposals_router
 from app.api.change_requests import router as change_requests_router
 from app.api.nexus import router as nexus_router
+from app.api.prospecting import router as prospecting_router
+from app.api.billing import router as billing_router
+from app.api.marketing import router as marketing_router
+from app.api.website_factory import router as website_factory_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -34,3 +38,8 @@ api_v1_router.include_router(voice_router)
 api_v1_router.include_router(proposals_router)
 api_v1_router.include_router(change_requests_router)
 api_v1_router.include_router(nexus_router)
+api_v1_router.include_router(prospecting_router)
+api_v1_router.include_router(billing_router)
+api_v1_router.include_router(marketing_router)
+api_v1_router.include_router(website_factory_router)
+

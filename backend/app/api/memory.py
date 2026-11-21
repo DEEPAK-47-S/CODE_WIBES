@@ -133,3 +133,26 @@ async def get_latest_task_checkpoint(task_id: uuid.UUID, db: AsyncSession = Depe
         "trigger_reason": chk.trigger_reason,
         "created_at": chk.created_at.isoformat() if chk.created_at else None,
     }
+
+
+@router.get("/semantic-search")
+async def semantic_search_memories(
+    q: str,
+    namespace: Optional[str] = None,
+    limit: int = 5,
+    db: AsyncSession = Depends(get_db),
+):
+    """Vector cosine similarity search over persistent company memories."""
+    from app.services.semantic_memory_service import SemanticMemoryService
+    service = SemanticMemoryService(db)
+    return await service.search(query=q, namespace=namespace, limit=limit)
+
+
+@router.post("/sync-embeddings")
+async def sync_memory_embeddings(db: AsyncSession = Depends(get_db)):
+    """Indexes all unindexed company memories into vector embeddings."""
+    from app.services.semantic_memory_service import SemanticMemoryService
+    service = SemanticMemoryService(db)
+    indexed = await service.sync_all_memories()
+    return {"status": "synced", "indexed_memories_count": indexed}
+

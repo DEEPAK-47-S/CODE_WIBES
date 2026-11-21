@@ -82,3 +82,22 @@ async def dispatch_founder_alert(
     service = VoiceService(db)
     result = await service.trigger_founder_emergency_alert_call(data.alert_message)
     return result
+
+
+@router.post("/calls/{call_id}/extract-scope")
+async def extract_scope_from_call(call_id: str, db: AsyncSession = Depends(get_db)):
+    """Analyzes voice call transcript and extracts customer requirement brief and proposal draft."""
+    service = VoiceService(db)
+    try:
+        c_uuid = uuid.UUID(call_id)
+        return await service.extract_requirements_from_call(c_uuid)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/webhook")
+async def handle_telephony_webhook(payload: dict, db: AsyncSession = Depends(get_db)):
+    """Receives live call completion events from ElevenLabs or Twilio gateways."""
+    service = VoiceService(db)
+    return await service.ingest_telephony_webhook(payload)
+

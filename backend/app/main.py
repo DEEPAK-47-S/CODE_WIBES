@@ -53,6 +53,23 @@ app.add_middleware(
 app.include_router(api_v1_router)
 
 
+@app.get("/staging/{project_id}")
+async def staging_site_view(project_id: str):
+    """Direct staging view for client and founder preview."""
+    import uuid
+    from fastapi.responses import HTMLResponse
+    from app.services.website_factory_service import WebsiteFactoryService
+    async with AsyncSessionLocal() as session:
+        service = WebsiteFactoryService(session)
+        try:
+            p_uuid = uuid.UUID(project_id)
+            html = await service.get_staging_html(p_uuid)
+            return HTMLResponse(content=html)
+        except Exception:
+            return HTMLResponse(content=f"<h1>Invalid project ID: {project_id}</h1>", status_code=400)
+
+
+
 @app.get("/")
 async def root():
     """Root endpoint — basic platform info."""
